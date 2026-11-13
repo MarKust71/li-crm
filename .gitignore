@@ -24,3 +24,7 @@ npm-debug.log*
 
 # lokalna dokumentacja (nie synchronizujemy z GitHubem)
 /docs/
+
+# dane osobowe z arkuszy i klucze (repo jest publiczne)
+/data/
+/secrets/
