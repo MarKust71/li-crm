@@ -93,7 +93,7 @@ enum EventType {
   THANKS_SENT            // Appr.-Resp. (data) + Appr.-Resp.-Msg (moja wiadomość)
   ASKED_OPEN             // Are-You-Open (data) + A-Y-O-Text
   ASKED_OPEN_REMINDER    // A-Y-O-Reminder + A-Y-O-Reminder-Text
-  ASKED_OPEN_RESPONSE    // A-Y-O-Response – znaczenie do potwierdzenia (spec 9)
+  ASKED_OPEN_RESPONSE    // A-Y-O-Response: data pierwszej reakcji na pytanie; decyzja może być od razu lub później
   OPEN_TO_TALK           // A-Y-O-Decision (data) gdy Open-To-Talk = TRUE
   NOT_INTERESTED         // A-Y-O-Decision (data) gdy NO = TRUE, + NO-Response-Text
   MEETING_PROPOSED       // Meet-Proposal + Meet-Proposal-Text
