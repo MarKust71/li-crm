@@ -77,6 +77,7 @@ const report = {
   duplicatesMerged: [] as { url: string; tabs: string[] }[],
   conflicts: [] as { url: string; field: string; kept: unknown; other: unknown; tab: string }[],
   assumptions: [
+    "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN (wycofane zaproszenie; nie zmienia etapu)",
     "Zaprosili mnie: Invite→INVITE_RECEIVED, Appreciation→REACTION_RECEIVED (+Appr.-text jako message), Appr.-response→THANKS_SENT",
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE NIE jest tworzone (decyzja użytkownika, odstępstwo od spec 5.1)",
     "Open-To-Talk/NO/Decision-* = TRUE bez daty: najpóźniejsza znana data z wiersza (spec 5.1); gdy brak: data importu",
@@ -174,7 +175,7 @@ const USED = new Set([
   "name", "location", "occupation", "contact-from", "otw", "connect-msg", "viewed", "ignored", "delay",
   "appr.-resp.-msg", "a-y-o-text", "a-y-o-reminder-text", "open-to-talk", "no", "no-response-text",
   "meet-proposal-text", "meet-proposal-reminder-text", "decision-yes", "decision-no", "info", "email",
-  "phone", "profileurl", "onviewerslist", "l.p.", "appr.-text", ...STAGE_COLS,
+  "phone", "profileurl", "onviewerslist", "l.p.", "appr.-text", "withdraw", ...STAGE_COLS,
 ]);
 // kolumny pomocnicze/formuły - świadomie pomijane, nie raportujemy ich jako "niezmapowane"
 const DERIVED = new Set(["found", "hide", "profileuri", "contactfrom", "viewer", "loc.", "ocu."]);
@@ -272,6 +273,8 @@ function importMainTab(tab: string) {
     const inviteMsg = str(get(r, "connect-msg"));
     if (inviteDate) push({ type: inbound ? "INVITE_RECEIVED" : "INVITE_SENT", occurredAt: inviteDate, message: inviteMsg });
     if (!c.salutation && inviteMsg) c.salutation = SALUTATION.exec(inviteMsg)?.[1] ?? null;
+    const withdrawn = d("withdraw");
+    if (withdrawn) push({ type: "INVITE_WITHDRAWN", occurredAt: withdrawn });
     const accept = d("accept");
     if (accept) push({ type: "ACCEPTED", occurredAt: accept });
     const appr = d("appreciation");

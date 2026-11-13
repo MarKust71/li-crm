@@ -88,6 +88,7 @@ model Contact {
 enum EventType {
   INVITE_SENT            // Connect (data) + Connect-Msg (treść)  [OUTBOUND]
   INVITE_RECEIVED        // [INBOUND]
+  INVITE_WITHDRAWN       // Withdraw: wycofałem zaproszenie po długim oczekiwaniu (może wrócić nowe INVITE_SENT)
   ACCEPTED               // Accept. Delay = Accept − Connect (liczone, nie zapisywane)
   REACTION_RECEIVED      // Appreciation: osoba przy akceptacji zareagowała (emotka, wiadomość)
   THANKS_SENT            // Appr.-Resp. (data) + Appr.-Resp.-Msg (moja wiadomość)

@@ -20,6 +20,7 @@ const ORDER: Stage[] = [
 const EVENT_STAGE: Partial<Record<EventType, Stage>> = {
   INVITE_SENT: "INVITED",
   INVITE_RECEIVED: "INVITED",
+  INVITE_WITHDRAWN: "INVITED", // wycofać można tylko wysłane zaproszenie
   ACCEPTED: "ACCEPTED",
   REACTION_RECEIVED: "ACCEPTED",
   THANKS_SENT: "THANKED",
