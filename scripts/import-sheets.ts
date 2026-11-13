@@ -366,6 +366,13 @@ function importStoreTab(file: string) {
 
 // ───────────────────────── li-time ─────────────────────────
 
+// Literówki w nazwach czynności (li-time) → poprawna nazwa. Tylko pewne przypadki.
+const ACTIVITY_FIXES: Record<string, string> = {
+  "zaproczenia do kontaktu": "zaproszenia do kontaktu",
+  fitrowanie: "filtrowanie",
+  "szblony wiadomości": "szablony wiadomości",
+};
+
 function importTime(file: string) {
   const snap = readSnap("li-time", file);
   const tab = `time/${snap.sheet}`;
@@ -394,6 +401,16 @@ function importTime(file: string) {
       activity = m[1].trim() || null;
       count = m[2] ? Number(m[2]) : null;
       if (m[3]) note = m[3].trim();
+      const fixed = activity ? ACTIVITY_FIXES[activity.toLowerCase()] : undefined;
+      if (fixed) {
+        bump(st, "activityTypoFixed");
+        activity = fixed;
+      } else if (activity?.toLowerCase() === "oglądaczeakceptacja") {
+        // brak przecinka między dwiema czynnościami: zapisz pierwszą, oryginał w note
+        bump(st, "activityTypoFixed");
+        note = [note, activity].filter(Boolean).join("; ");
+        activity = "oglądacze";
+      }
       if (parts.length > 1) {
         note = comment; // kilka czynności w jednym wpisie: zachowaj pełny opis
         bump(st, "multiActivity");
