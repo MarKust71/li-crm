@@ -118,6 +118,7 @@ model ContactEvent {
   occurredAt  DateTime
   message     String?   // treść wysłanej / otrzymanej wiadomości
   scheduledAt DateTime? // np. termin BP
+  dateUnknown Boolean   @default(false) // true = occurredAt to znacznik (np. 2000-01-01), nie prawdziwa data; pomijać w statystykach czasu
   createdAt   DateTime  @default(now())
 
   @@index([contactId, occurredAt])

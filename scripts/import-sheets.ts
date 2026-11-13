@@ -77,7 +77,7 @@ const report = {
   duplicatesMerged: [] as { url: string; tabs: string[] }[],
   conflicts: [] as { url: string; field: string; kept: unknown; other: unknown; tab: string }[],
   assumptions: [
-    "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN (wycofane zaproszenie; nie zmienia etapu)",
+    "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN; gdy brak wcześniejszego INVITE_SENT, dodajemy INVITE_SENT ze znacznikiem 2000-01-01 (decyzja użytkownika)",
     "Zaprosili mnie: Invite→INVITE_RECEIVED, Appreciation→REACTION_RECEIVED (+Appr.-text jako message), Appr.-response→THANKS_SENT",
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE NIE jest tworzone (decyzja użytkownika, odstępstwo od spec 5.1)",
     "Open-To-Talk/NO/Decision-* = TRUE bez daty: najpóźniejsza znana data z wiersza (spec 5.1); gdy brak: data importu",
@@ -92,7 +92,7 @@ const tabStat = (tab: string) => (report.tabs[tab] ??= {});
 
 // ───────────────────────── model w pamięci ─────────────────────────
 
-type Ev = { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null };
+type Ev = { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; dateUnknown?: boolean };
 type C = {
   id: string; profileUrl: string; name: string; salutation: string | null;
   location: string | null; occupation: string | null; email: string | null; phone: string | null;
@@ -428,6 +428,20 @@ function importTime(file: string) {
 for (const tab of TAB_ORDER) importMainTab(tab);
 for (const f of listSnaps("li-contact-data-store")) importStoreTab(f);
 for (const f of listSnaps("li-time")) importTime(f);
+
+// Wycofane zaproszenie bez znanej daty pierwotnego zaproszenia: znacznik 1.01.2000
+// (ta sama konwencja, której użytkownik używa w arkuszu dla nieznanych dat).
+const UNKNOWN_INVITE_DATE = warsawToUtc(2000, 1, 1, 0, 0, 0);
+for (const c of contacts.values()) {
+  const withdrawals = c.events.filter((e) => e.type === "INVITE_WITHDRAWN");
+  if (!withdrawals.length || c.direction !== "OUTBOUND") continue;
+  const first = Math.min(...withdrawals.map((e) => e.occurredAt.getTime()));
+  const hasInvite = c.events.some((e) => e.type === "INVITE_SENT" && e.occurredAt.getTime() <= first);
+  if (!hasInvite) {
+    addEvent(c, { type: "INVITE_SENT", occurredAt: UNKNOWN_INVITE_DATE, dateUnknown: true });
+    bump(report.imputedDates, "INVITE_SENT (znacznik 2000-01-01 dla wycofanego zaproszenia)");
+  }
+}
 
 const stages: Record<string, number> = {};
 for (const c of contacts.values()) {
