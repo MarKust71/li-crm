@@ -80,7 +80,7 @@ const report = {
     "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN; gdy brak wcześniejszego INVITE_SENT, dodajemy INVITE_SENT ze znacznikiem 2000-01-01 (decyzja użytkownika)",
     "Zaprosili mnie: Invite→INVITE_RECEIVED, Appreciation→REACTION_RECEIVED (+Appr.-text jako message), Appr.-response→THANKS_SENT",
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE NIE jest tworzone (decyzja użytkownika, odstępstwo od spec 5.1)",
-    "Open-To-Talk/NO/Decision-* = TRUE bez daty: najpóźniejsza znana data z wiersza (spec 5.1); gdy brak: data importu",
+    "Open-To-Talk/NO/Decision-* = TRUE bez daty: najpóźniejsza znana data z wiersza (spec 5.1); gdy brak: data importu. Takie zdarzenia mają dateUnknown=true",
     "Ignored=TRUE → archived, archiveReason=OTHER (powód nie jest zapisany w arkuszu)",
     "Zakładka Viewers (1000 osób): tylko osoba + tag; kolumny przynależności do zakładek (formuły) pominięte",
     "li-contact-data-store: każda zakładka = tag; contactFrom = nazwa zakładki, gdy puste; zakładka 'viewers' → Source.VIEWERS, reszta → Source.SEARCH",
@@ -296,22 +296,22 @@ function importMainTab(tab: string) {
 
     const yes = truthy(get(r, "open-to-talk"));
     const no = truthy(get(r, "no"));
-    if (yes) push({ type: "OPEN_TO_TALK", occurredAt: decisionDate ?? impute("OPEN_TO_TALK") });
-    if (no) push({ type: "NOT_INTERESTED", occurredAt: decisionDate ?? impute("NOT_INTERESTED"), message: str(get(r, "no-response-text")) });
+    if (yes) push({ type: "OPEN_TO_TALK", occurredAt: decisionDate ?? impute("OPEN_TO_TALK"), dateUnknown: !decisionDate });
+    if (no) push({ type: "NOT_INTERESTED", occurredAt: decisionDate ?? impute("NOT_INTERESTED"), message: str(get(r, "no-response-text")), dateUnknown: !decisionDate });
     if (decisionDate && !yes && !no) bump(st, "decisionDateWithoutType");
 
     const prop = d("meet-proposal");
-    if (prop) push({ type: "MEETING_PROPOSED", occurredAt: prop, message: str(get(r, "meet-proposal-text")) });
+    if (prop) push({ type: "BOM_PROPOSED", occurredAt: prop, message: str(get(r, "meet-proposal-text")) });
     const propRem = d("meet-proposal-reminder");
-    if (propRem) push({ type: "MEETING_PROPOSAL_REMINDER", occurredAt: propRem, message: str(get(r, "meet-proposal-reminder-text")) });
+    if (propRem) push({ type: "BOM_PROPOSAL_REMINDER", occurredAt: propRem, message: str(get(r, "meet-proposal-reminder-text")) });
     const bp = d("bp-date");
-    if (bp) push({ type: "BP_SCHEDULED", occurredAt: bp, scheduledAt: bp });
-    for (const [col, type] of [["confirmed", "BP_CONFIRMED"], ["bp-canceled", "BP_CANCELED"], ["bp-noshow", "BP_NO_SHOW"], ["bp-completed", "BP_COMPLETED"]] as const) {
+    if (bp) push({ type: "BOM_SCHEDULED", occurredAt: bp, scheduledAt: bp });
+    for (const [col, type] of [["confirmed", "BOM_CONFIRMED"], ["bp-canceled", "BOM_CANCELED"], ["bp-noshow", "BOM_NO_SHOW"], ["bp-completed", "BOM_COMPLETED"]] as const) {
       const x = d(col);
       if (x) push({ type, occurredAt: x });
     }
-    if (truthy(get(r, "decision-yes"))) push({ type: "DECISION_YES", occurredAt: impute("DECISION_YES") });
-    if (truthy(get(r, "decision-no"))) push({ type: "DECISION_NO", occurredAt: impute("DECISION_NO") });
+    if (truthy(get(r, "decision-yes"))) push({ type: "DECISION_YES", occurredAt: impute("DECISION_YES"), dateUnknown: true });
+    if (truthy(get(r, "decision-no"))) push({ type: "DECISION_NO", occurredAt: impute("DECISION_NO"), dateUnknown: true });
 
     if (truthy(get(r, "viewed")) || truthy(get(r, "onviewerslist"))) {
       // Viewed/onViewersList to flagi bez daty: nie tworzymy zdarzenia z zadaną datą
