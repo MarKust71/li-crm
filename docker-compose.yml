@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17
+    container_name: li-crm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: li_crm
+      POSTGRES_PASSWORD: li_crm_dev
+      POSTGRES_DB: li_crm
+    ports:
+      - "5433:5432"
+    volumes:
+      - li_crm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U li_crm -d li_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  li_crm_pgdata:
