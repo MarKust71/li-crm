@@ -10,11 +10,14 @@
     "postinstall": "prisma generate",
     "db:up": "docker compose up -d db",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "snapshot": "tsx scripts/snapshot-sheets.ts",
+    "import": "tsx scripts/import-sheets.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "@vercel/analytics": "^2.0.1",
+    "googleapis": "^190.0.0",
     "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -26,6 +29,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
