@@ -11,7 +11,8 @@
     "db:up": "docker compose up -d db",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "snapshot": "tsx scripts/snapshot-sheets.ts"
+    "snapshot": "tsx scripts/snapshot-sheets.ts",
+    "import": "tsx scripts/import-sheets.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
