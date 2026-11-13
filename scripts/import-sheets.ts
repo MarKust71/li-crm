@@ -79,6 +79,7 @@ const report = {
   assumptions: [
     "Agreed (Zaprosili mnie) → BOM_SCHEDULED z datą zgody i komentarzem w message (gdy brak BP-Date), inaczej BOM_CONFIRMED; Facebook → dopisane do info jako 'Facebook: <url>'",
     "Zaprosili mnie: Post 1-2-response → ASKED_OPEN_RESPONSE; Extra-Post(+text) → NOTE; Extra → dopisane do info jako 'Extra: <tekst>'",
+    "Oglądali mnie: View-Appreciation → REACTION_RECEIVED (tekst w message; tekst bez daty → info jako 'View-Appreciation: …'); kolumna 'Katowice - reconnect' w zakładce Katowice ignorowana (duplikuje tag)",
     "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN; gdy brak wcześniejszego INVITE_SENT, dodajemy INVITE_SENT ze znacznikiem 2000-01-01 (decyzja użytkownika)",
     "Zaprosili mnie: Invite→INVITE_RECEIVED, Appreciation→REACTION_RECEIVED (+Appr.-text jako message), Appr.-response→THANKS_SENT",
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE NIE jest tworzone (decyzja użytkownika, odstępstwo od spec 5.1)",
@@ -177,10 +178,10 @@ const USED = new Set([
   "name", "location", "occupation", "contact-from", "otw", "connect-msg", "viewed", "ignored", "delay",
   "appr.-resp.-msg", "a-y-o-text", "a-y-o-reminder-text", "open-to-talk", "no", "no-response-text",
   "meet-proposal-text", "meet-proposal-reminder-text", "decision-yes", "decision-no", "info", "email",
-  "phone", "profileurl", "onviewerslist", "l.p.", "appr.-text", "withdraw", "agreed", "facebook", "post 1-2-response", "extra-post", "extra-post-text", "extra", ...STAGE_COLS,
+  "phone", "profileurl", "onviewerslist", "l.p.", "appr.-text", "withdraw", "agreed", "facebook", "post 1-2-response", "extra-post", "extra-post-text", "extra", "view-appreciation", "view-appr.-text", ...STAGE_COLS,
 ]);
 // kolumny pomocnicze/formuły - świadomie pomijane, nie raportujemy ich jako "niezmapowane"
-const DERIVED = new Set(["found", "hide", "profileuri", "contactfrom", "viewer", "loc.", "ocu."]);
+const DERIVED = new Set(["found", "hide", "profileuri", "contactfrom", "viewer", "loc.", "ocu.", "katowice - reconnect"]);
 
 const TAB_ORDER = [
   "Ja zapraszam", "Zaprosili mnie", "Częstochowa", "Wrocław", "Kraków", "Szczecin", "Warszawa", "Katowice",
@@ -291,6 +292,14 @@ function importMainTab(tab: string) {
     if (accept) push({ type: "ACCEPTED", occurredAt: accept });
     const appr = d("appreciation");
     if (appr) push({ type: "REACTION_RECEIVED", occurredAt: appr, message: str(get(r, "appr.-text")) });
+    // "View-Appreciation" (Oglądali mnie): reakcja osoby po obejrzeniu profilu; sam tekst bez daty → info
+    const viewAppr = d("view-appreciation");
+    const viewApprText = str(get(r, "view-appr.-text"));
+    if (viewAppr) push({ type: "REACTION_RECEIVED", occurredAt: viewAppr, message: viewApprText });
+    else if (viewApprText && !(c.info ?? "").includes(viewApprText)) {
+      c.info = [c.info, `View-Appreciation: ${viewApprText}`].filter(Boolean).join("\n");
+      bump(st, "viewApprTextToInfo");
+    }
     const thanks = d("appr.-resp.");
     if (thanks) push({ type: "THANKS_SENT", occurredAt: thanks, message: str(get(r, "appr.-resp.-msg")) });
     const ayo = d("are-you-open");
