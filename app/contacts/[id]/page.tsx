@@ -21,7 +21,6 @@ import {
   unarchiveAction,
   updateDetailsAction,
 } from "./actions";
-import styles from "./card.module.css";
 
 export const metadata: Metadata = { title: "Kontakt · li-crm" };
 
@@ -38,6 +37,18 @@ const dateTimeFmt = new Intl.DateTimeFormat("pl-PL", {
   timeZone: "Europe/Warsaw",
 });
 
+// Wspólne style (do czasu przejścia na komponenty shadcn).
+const panel = "rounded-lg border border-line p-4";
+const h2 = "mb-3 text-base font-semibold";
+const pill = "inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs";
+const form = "mt-2.5 flex flex-col gap-2.5";
+const label = "flex flex-col gap-1 text-xs text-muted";
+const field = "rounded-md border border-line bg-background px-2 py-1.5 text-sm text-foreground";
+const btn = "cursor-pointer self-start rounded-md border border-line bg-background px-3.5 py-2 text-sm text-foreground";
+const btnPrimary =
+  "cursor-pointer self-start rounded-md border border-foreground bg-foreground px-3.5 py-2 text-sm text-background";
+const summary = "cursor-pointer text-muted";
+
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -45,11 +56,11 @@ type Props = {
 
 export default function ContactPage({ params, searchParams }: Props) {
   return (
-    <main className={styles.main}>
-      <Link href="/contacts" className={styles.back}>
+    <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6">
+      <Link href="/contacts" className="mb-3 inline-block text-sm text-muted underline">
         ← Kontakty
       </Link>
-      <Suspense fallback={<p className={styles.muted}>Ładuję kontakt…</p>}>
+      <Suspense fallback={<p className="text-sm text-muted">Ładuję kontakt…</p>}>
         <ContactCard params={params} searchParams={searchParams} />
       </Suspense>
     </main>
@@ -70,31 +81,31 @@ async function ContactCard({ params, searchParams }: Props) {
 
   return (
     <>
-      <header className={styles.header}>
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1>{contact.name}</h1>
-          {contact.occupation && <p className={styles.occupation}>{contact.occupation}</p>}
+          <h1 className="break-words text-2xl font-semibold">{contact.name}</h1>
+          {contact.occupation && <p className="mt-1 text-[0.95rem] text-muted">{contact.occupation}</p>}
         </div>
-        <div className={styles.badges}>
-          <span className={styles.stage}>{STAGE_LABEL[contact.stage]}</span>
-          {contact.openToWork && <span className={styles.badge}>OTW</span>}
-          {contact.archived && <span className={styles.badgeMuted}>zarchiwizowany</span>}
+        <div className="flex flex-wrap gap-1.5">
+          <span className={`${pill} border border-foreground font-semibold`}>{STAGE_LABEL[contact.stage]}</span>
+          {contact.openToWork && <span className={`${pill} bg-foreground text-background`}>OTW</span>}
+          {contact.archived && <span className={`${pill} border border-line bg-soft`}>zarchiwizowany</span>}
         </div>
       </header>
 
       {error && (
-        <p role="alert" className={styles.error}>
+        <p role="alert" className="mb-4 rounded-md border border-danger px-3 py-2.5 text-sm text-danger">
           {error}
         </p>
       )}
 
-      <div className={styles.grid}>
-        <section className={styles.panel}>
-          <h2>Dane</h2>
-          <dl className={styles.data}>
+      <div className="mb-4 grid gap-4 md:grid-cols-2">
+        <section className={panel}>
+          <h2 className={h2}>Dane</h2>
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm [&>dt]:text-muted [&>dd]:break-words">
             <dt>Profil</dt>
             <dd>
-              <a href={contact.profileUrl} target="_blank" rel="noopener noreferrer">
+              <a href={contact.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
                 {contact.profileUrl.replace("https://www.", "")} ↗
               </a>
             </dd>
@@ -108,7 +119,9 @@ async function ContactCard({ params, searchParams }: Props) {
               <>
                 <dt>E-mail</dt>
                 <dd>
-                  <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                  <a href={`mailto:${contact.email}`} className="underline">
+                    {contact.email}
+                  </a>
                 </dd>
               </>
             )}
@@ -134,9 +147,9 @@ async function ContactCard({ params, searchParams }: Props) {
             {tags.length > 0 && (
               <>
                 <dt>Tagi</dt>
-                <dd className={styles.tags}>
+                <dd className="flex flex-wrap gap-1">
                   {tags.map((t) => (
-                    <span key={t} className={styles.tag}>
+                    <span key={t} className={`${pill} border border-line bg-soft`}>
                       {t}
                     </span>
                   ))}
@@ -152,48 +165,52 @@ async function ContactCard({ params, searchParams }: Props) {
           </dl>
           {contact.info && (
             <>
-              <h3>Notatki</h3>
-              <p className={styles.info}>{contact.info}</p>
+              <h3 className="mb-1.5 mt-4 text-sm text-muted">Notatki</h3>
+              <p className="whitespace-pre-wrap break-words text-sm">{contact.info}</p>
             </>
           )}
 
-          <details className={styles.details}>
-            <summary>Edytuj dane</summary>
-            <form action={updateDetailsAction} className={styles.form}>
+          <details className="mt-3.5 text-sm">
+            <summary className={summary}>Edytuj dane</summary>
+            <form action={updateDetailsAction} className={form}>
               <input type="hidden" name="id" value={contact.id} />
-              <label>
+              <label className={label}>
                 <span>Zwrot (np. „Pani Aniu”)</span>
-                <input name="salutation" defaultValue={contact.salutation ?? ""} maxLength={100} />
+                <input name="salutation" defaultValue={contact.salutation ?? ""} maxLength={100} className={field} />
               </label>
-              <label>
+              <label className={label}>
                 <span>E-mail</span>
-                <input name="email" type="email" defaultValue={contact.email ?? ""} maxLength={200} />
+                <input name="email" type="email" defaultValue={contact.email ?? ""} maxLength={200} className={field} />
               </label>
-              <label>
+              <label className={label}>
                 <span>Telefon</span>
-                <input name="phone" defaultValue={contact.phone ?? ""} maxLength={50} />
+                <input name="phone" defaultValue={contact.phone ?? ""} maxLength={50} className={field} />
               </label>
-              <label>
+              <label className={label}>
                 <span>Notatki</span>
-                <textarea name="info" rows={5} defaultValue={contact.info ?? ""} maxLength={10000} />
+                <textarea name="info" rows={5} defaultValue={contact.info ?? ""} maxLength={10000} className={field} />
               </label>
-              <button type="submit">Zapisz</button>
+              <button type="submit" className={btn}>
+                Zapisz
+              </button>
             </form>
           </details>
 
-          <details className={styles.details}>
-            <summary>{contact.archived ? "Przywróć kontakt" : "Archiwizuj"}</summary>
+          <details className="mt-3.5 text-sm">
+            <summary className={summary}>{contact.archived ? "Przywróć kontakt" : "Archiwizuj"}</summary>
             {contact.archived ? (
-              <form action={unarchiveAction} className={styles.form}>
+              <form action={unarchiveAction} className={form}>
                 <input type="hidden" name="id" value={contact.id} />
-                <button type="submit">Przywróć z archiwum</button>
+                <button type="submit" className={btn}>
+                  Przywróć z archiwum
+                </button>
               </form>
             ) : (
-              <form action={archiveAction} className={styles.form}>
+              <form action={archiveAction} className={form}>
                 <input type="hidden" name="id" value={contact.id} />
-                <label>
+                <label className={label}>
                   <span>Powód</span>
-                  <select name="reason" defaultValue="NO_CONVERSATION">
+                  <select name="reason" defaultValue="NO_CONVERSATION" className={field}>
                     {ARCHIVE_REASONS.map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
@@ -201,50 +218,52 @@ async function ContactCard({ params, searchParams }: Props) {
                     ))}
                   </select>
                 </label>
-                <button type="submit">Archiwizuj</button>
+                <button type="submit" className={btn}>
+                  Archiwizuj
+                </button>
               </form>
             )}
           </details>
         </section>
 
-        <section className={styles.panel}>
-          <h2>Następny krok</h2>
-          <form action={addEventAction} className={styles.form}>
+        <section className={panel}>
+          <h2 className={h2}>Następny krok</h2>
+          <form action={addEventAction} className="flex flex-col gap-2.5">
             <input type="hidden" name="id" value={contact.id} />
-            <label>
+            <label className={label}>
               <span>Data</span>
-              <input type="date" name="date" defaultValue={today} required />
+              <input type="date" name="date" defaultValue={today} required className={field} />
             </label>
-            <label>
+            <label className={label}>
               <span>Treść wiadomości (opcjonalnie)</span>
-              <textarea name="message" rows={3} maxLength={5000} />
+              <textarea name="message" rows={3} maxLength={5000} className={field} />
             </label>
             {steps.includes("BOM_SCHEDULED") && (
-              <label>
+              <label className={label}>
                 <span>Termin spotkania (dla „BOM umówiony”)</span>
-                <input type="datetime-local" name="scheduledAt" />
+                <input type="datetime-local" name="scheduledAt" className={field} />
               </label>
             )}
             {steps.length > 0 ? (
-              <div className={styles.buttons}>
+              <div className="flex flex-wrap gap-2">
                 {steps.map((t, i) => (
-                  <button key={t} type="submit" name="type" value={t} className={i === 0 ? styles.primary : undefined}>
+                  <button key={t} type="submit" name="type" value={t} className={i === 0 ? btnPrimary : btn}>
                     {EVENT_LABEL[t]}
                   </button>
                 ))}
               </div>
             ) : (
-              <p className={styles.muted}>Dla tego etapu nie ma proponowanego kroku. Użyj „Inne zdarzenie”.</p>
+              <p className="text-sm text-muted">Dla tego etapu nie ma proponowanego kroku. Użyj „Inne zdarzenie”.</p>
             )}
           </form>
 
-          <details className={styles.details}>
-            <summary>Inne zdarzenie</summary>
-            <form action={addEventAction} className={styles.form}>
+          <details className="mt-3.5 text-sm">
+            <summary className={summary}>Inne zdarzenie</summary>
+            <form action={addEventAction} className={form}>
               <input type="hidden" name="id" value={contact.id} />
-              <label>
+              <label className={label}>
                 <span>Typ</span>
-                <select name="type" defaultValue="NOTE">
+                <select name="type" defaultValue="NOTE" className={field}>
                   {ALL_EVENT_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {EVENT_LABEL[t]}
@@ -252,46 +271,60 @@ async function ContactCard({ params, searchParams }: Props) {
                   ))}
                 </select>
               </label>
-              <label>
+              <label className={label}>
                 <span>Data</span>
-                <input type="date" name="date" defaultValue={today} required />
+                <input type="date" name="date" defaultValue={today} required className={field} />
               </label>
-              <label>
+              <label className={label}>
                 <span>Treść / notatka</span>
-                <textarea name="message" rows={3} maxLength={5000} />
+                <textarea name="message" rows={3} maxLength={5000} className={field} />
               </label>
-              <label>
+              <label className={label}>
                 <span>Termin spotkania (tylko „BOM umówiony”)</span>
-                <input type="datetime-local" name="scheduledAt" />
+                <input type="datetime-local" name="scheduledAt" className={field} />
               </label>
-              <button type="submit">Dodaj</button>
+              <button type="submit" className={btn}>
+                Dodaj
+              </button>
             </form>
           </details>
         </section>
       </div>
 
-      <section className={styles.panel}>
-        <h2>Historia ({contact.events.length})</h2>
+      <section className={panel}>
+        <h2 className={h2}>Historia ({contact.events.length})</h2>
         {contact.events.length === 0 ? (
-          <p className={styles.muted}>Brak zdarzeń.</p>
+          <p className="text-sm text-muted">Brak zdarzeń.</p>
         ) : (
-          <ol className={styles.timeline}>
+          <ol className="border-l-2 border-line pl-4">
             {contact.events.map((e) => (
-              <li key={e.id}>
-                <div className={styles.eventHead}>
-                  <span className={styles.eventDate}>
+              <li
+                key={e.id}
+                className="relative pb-4 before:absolute before:-left-[22px] before:top-1.5 before:size-2.5 before:rounded-full before:bg-foreground before:content-['']"
+              >
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-[0.85rem] text-muted">
                     {dateFmt.format(e.occurredAt)}
-                    {e.dateUnknown && <em className={styles.unknown}> · data nieznana</em>}
+                    {e.dateUnknown && <em className="not-italic text-warn"> · data nieznana</em>}
                   </span>
                   <strong>{EVENT_LABEL[e.type]}</strong>
                 </div>
-                {e.scheduledAt && <p className={styles.sub}>Termin: {dateTimeFmt.format(e.scheduledAt)}</p>}
-                {e.message && <p className={styles.message}>{e.message}</p>}
-                <details className={styles.delete}>
-                  <summary>usuń</summary>
+                {e.scheduledAt && <p className="text-sm text-muted">Termin: {dateTimeFmt.format(e.scheduledAt)}</p>}
+                {e.message && (
+                  <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-soft px-2.5 py-2 text-sm">
+                    {e.message}
+                  </p>
+                )}
+                <details className="mt-1 text-xs">
+                  <summary className={summary}>usuń</summary>
                   <form action={deleteEventAction}>
                     <input type="hidden" name="eventId" value={e.id} />
-                    <button type="submit">Potwierdź usunięcie</button>
+                    <button
+                      type="submit"
+                      className="mt-1.5 cursor-pointer rounded-md border border-danger bg-background px-3.5 py-2 text-sm text-danger"
+                    >
+                      Potwierdź usunięcie
+                    </button>
                   </form>
                 </details>
               </li>
