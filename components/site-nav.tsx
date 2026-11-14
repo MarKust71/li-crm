@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Elapsed } from "@/components/elapsed";
+import pkg from "../package.json";
 import { countDue } from "@/lib/reminders";
 import { getRunningEntry } from "@/lib/time";
 
@@ -29,6 +30,9 @@ export function SiteNav({ current }: Props) {
       <Suspense fallback={null}>
         <RunningBadge />
       </Suspense>
+      <span className="ml-2 text-xs tabular-nums text-muted-foreground" title="Wersja aplikacji (package.json)">
+        v{pkg.version}
+      </span>
     </nav>
   );
 }
