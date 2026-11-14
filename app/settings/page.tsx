@@ -9,14 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { syncStatus } from "@/lib/calendar-sync";
-import { MAX_INTERVAL_MINUTES } from "@/lib/settings";
-import { saveIntervalAction, syncNowAction } from "./actions";
+import { MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, getNotifySettings } from "@/lib/settings";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { notifyTestAction, saveIntervalAction, saveNotifyAction, syncNowAction } from "./actions";
 
 export const metadata: Metadata = { title: "Ustawienia · li-crm" };
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Warsaw" });
 
-export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string }> }) {
+export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string }> }) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -30,14 +31,16 @@ export default function SettingsPage({ searchParams }: { searchParams: Promise<{
   );
 }
 
-async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string }> }) {
+async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string }> }) {
   await connection();
   const sp = await searchParams;
   const { settings: s, counts } = await syncStatus();
+  const n = await getNotifySettings();
   const mode = s.intervalMinutes < 0 ? "off" : s.intervalMinutes === 0 ? "manual" : "interval";
   const waiting = s.manualRequestedAt && (!s.lastRunAt || s.manualRequestedAt > s.lastRunAt);
   const errors = counts.ERROR ?? 0;
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Synchronizacja z Kalendarzem Google</CardTitle>
@@ -49,7 +52,10 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
         </p>
         {sp.saved && <Alert><AlertDescription>Zapisano ustawienie.</AlertDescription></Alert>}
         {sp.requested && <Alert><AlertDescription>Zgłoszono synchronizację. Ruszy przy najbliższym sprawdzeniu (do minuty).</AlertDescription></Alert>}
-        {sp.error && <Alert variant="destructive"><AlertDescription>Niepoprawna liczba minut (1–{MAX_INTERVAL_MINUTES}).</AlertDescription></Alert>}
+        {sp.error === "interval" && <Alert variant="destructive"><AlertDescription>Niepoprawna liczba minut (1–{MAX_INTERVAL_MINUTES}).</AlertDescription></Alert>}
+        {sp.error === "notify" && <Alert variant="destructive"><AlertDescription>Niepoprawne ustawienia powiadomień (minuty przed spotkaniem: 0–{MAX_LEAD_MINUTES}).</AlertDescription></Alert>}
+        {sp.notifySaved && <Alert><AlertDescription>Zapisano ustawienia powiadomień.</AlertDescription></Alert>}
+        {sp.notifyTest && <Alert><AlertDescription>Zgłoszono wiadomość testową. Przyjdzie na Telegram przy najbliższym sprawdzeniu (do minuty).</AlertDescription></Alert>}
 
         <form action={saveIntervalAction} className="flex flex-col gap-3 rounded-lg border p-3">
           <fieldset className="flex flex-col gap-2">
@@ -86,5 +92,38 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
         </dl>
       </CardContent>
     </Card>
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Powiadomienia Telegram</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Wiadomości wysyła n8n (workflow „li-crm: powiadomienia Telegram”, sprawdza co minutę). Godziny w czasie warszawskim.
+          </p>
+          <form action={saveNotifyAction} className="flex flex-col gap-3 rounded-lg border p-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="digestHour">Poranny przegląd dnia (przypomnienia i spotkania)</Label>
+              <NativeSelect id="digestHour" name="digestHour" defaultValue={n.digestHour < 0 ? "off" : String(n.digestHour)}>
+                <NativeSelectOption value="off">Wyłączony</NativeSelectOption>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <NativeSelectOption key={h} value={String(h)}>{`od ${String(h).padStart(2, "0")}:00`}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="lead">Przypomnienie o spotkaniu (BOM, FU) na tyle minut przed (0 = wyłączone)</Label>
+              <Input id="lead" name="lead" type="number" min={0} max={MAX_LEAD_MINUTES} defaultValue={n.meetingLeadMinutes} className="w-28" />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="errorAlerts" defaultChecked={n.errorAlerts} /> Powiadamiaj o błędach synchronizacji z kalendarzem
+            </label>
+            <div><Button type="submit">Zapisz</Button></div>
+          </form>
+          <form action={notifyTestAction}>
+            <Button type="submit" variant="secondary">Wyślij wiadomość testową</Button>
+          </form>
+        </CardContent>
+      </Card>
+    </>
   );
 }

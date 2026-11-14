@@ -303,3 +303,12 @@ model AppSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// Wysłane powiadomienia (Telegram przez n8n): klucz zapobiega wysłaniu tej samej wiadomości dwa razy.
+// Klucze: digest:<data>, meeting:<id zdarzenia>:<termin>, error:<sygnatura>:<data>, test:<znacznik>.
+model SentNotification {
+  key    String   @id
+  sentAt DateTime @default(now())
+
+  @@index([sentAt])
+}
