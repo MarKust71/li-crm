@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 export function SubmitButton({ pendingLabel, children, className, ...props }: ComponentProps<typeof Button> & { pendingLabel?: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} aria-busy={pending} className={`cursor-pointer disabled:cursor-wait ${className ?? ""}`} {...props}>
+    <Button type="submit" disabled={pending} aria-busy={pending} className={`disabled:cursor-wait ${className ?? ""}`} {...props}>
       {pending && pendingLabel ? pendingLabel : children}
     </Button>
   );
