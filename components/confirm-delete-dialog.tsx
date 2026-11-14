@@ -14,13 +14,17 @@ import {
 import { Button } from "@/components/ui/button";
 
 type Props = {
-  eventId: string;
-  /** Server Action usuwająca zdarzenie (przekazana z komponentu serwerowego). */
+  /** Nazwa pola formularza, pod którą akcja odbiera identyfikator (np. "eventId"). */
+  fieldName: string;
+  id: string;
+  /** Server Action usuwająca rekord (przekazana z komponentu serwerowego). */
   action: (formData: FormData) => void | Promise<void>;
+  title: string;
+  description: string;
 };
 
-/** Potwierdzenie usunięcia zdarzenia z historii kontaktu. */
-export function DeleteEventDialog({ eventId, action }: Props) {
+/** Potwierdzenie nieodwracalnego usunięcia; wysyła zwykły formularz do Server Action. */
+export function ConfirmDeleteDialog({ fieldName, id, action, title, description }: Props) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -30,15 +34,13 @@ export function DeleteEventDialog({ eventId, action }: Props) {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Usunąć zdarzenie?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Tej operacji nie można cofnąć. Etap kontaktu zostanie przeliczony bez tego zdarzenia.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Anuluj</AlertDialogCancel>
           <form action={action}>
-            <input type="hidden" name="eventId" value={eventId} />
+            <input type="hidden" name={fieldName} value={id} />
             <AlertDialogAction type="submit" variant="destructive">
               Usuń
             </AlertDialogAction>

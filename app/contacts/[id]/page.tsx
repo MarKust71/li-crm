@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { DeleteEventDialog } from "@/components/delete-event-dialog";
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { SiteNav } from "@/components/site-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,9 +60,12 @@ type Props = {
 export default function ContactPage({ params, searchParams }: Props) {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6">
-      <Link href="/contacts" className="mb-3 inline-block text-sm text-muted-foreground underline">
-        ← Kontakty
-      </Link>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <Link href="/contacts" className="text-sm text-muted-foreground underline">
+          ← Kontakty
+        </Link>
+        <SiteNav current="contacts" />
+      </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakt…</p>}>
         <ContactCard params={params} searchParams={searchParams} />
       </Suspense>
@@ -334,7 +338,13 @@ async function ContactCard({ params, searchParams }: Props) {
                       {e.message}
                     </p>
                   )}
-                  <DeleteEventDialog eventId={e.id} action={deleteEventAction} />
+                  <ConfirmDeleteDialog
+                    fieldName="eventId"
+                    id={e.id}
+                    action={deleteEventAction}
+                    title="Usunąć zdarzenie?"
+                    description="Tej operacji nie można cofnąć. Etap kontaktu zostanie przeliczony bez tego zdarzenia."
+                  />
                 </li>
               ))}
             </ol>
