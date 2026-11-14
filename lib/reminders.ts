@@ -1,5 +1,6 @@
 import type { Prisma, ReminderKind, ReminderSource } from "@prisma/client";
 import { connection } from "next/server";
+import { contactName, logActivity } from "./activity-log";
 import { prisma } from "./prisma";
 import { addDays, parseDateInput, todayWarsaw, warsawDateOf } from "./dates";
 
@@ -90,21 +91,37 @@ export async function createReminder(input: {
 }): Promise<ReminderResult> {
   const dueAt = parseDateInput(input.dueDate);
   if (!dueAt) return { ok: false, error: "date" };
-  const exists = await prisma.contact.findUnique({ where: { id: input.contactId }, select: { id: true } });
+  const exists = await prisma.contact.findUnique({ where: { id: input.contactId }, select: { id: true, name: true } });
   if (!exists) return { ok: false, error: "notfound" };
-  await prisma.reminder.create({
+  const created = await prisma.reminder.create({
     data: { contactId: input.contactId, kind: input.kind, dueAt, allDay: true, note: input.note, source: input.source, syncState: "PENDING", syncAttempts: 0, syncError: null },
+  });
+  await logActivity({
+    source: "UI",
+    action: "reminder.created",
+    contactId: input.contactId,
+    summary: `Nowe przypomnienie (${input.kind === "RECONNECT" ? "ponowne zaproszenie" : "przypomnienie"}) na ${input.dueDate}: ${exists.name}`,
+    details: { reminderId: created.id, kind: input.kind, dueDate: input.dueDate },
   });
   return { ok: true };
 }
 
+/** Wpis do dziennika o zmianie przypomnienia (po udanej zmianie). */
+async function logReminder(id: string, action: string, verb: string, extra?: Record<string, string>) {
+  const r = await prisma.reminder.findUnique({ where: { id }, select: { contactId: true, kind: true } });
+  if (!r) return;
+  await logActivity({ source: "UI", action: `reminder.${action}`, contactId: r.contactId, summary: `${verb}: ${await contactName(r.contactId)}`, details: { reminderId: id, kind: r.kind, ...extra } });
+}
+
 export async function completeReminder(id: string): Promise<ReminderResult> {
   const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { status: "DONE", doneAt: new Date(), syncState: "PENDING", syncAttempts: 0, syncError: null } });
+  if (r.count === 1) await logReminder(id, "completed", "Przypomnienie wykonane");
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
 export async function reopenReminder(id: string): Promise<ReminderResult> {
   const r = await prisma.reminder.updateMany({ where: { id, status: "DONE" }, data: { status: "OPEN", doneAt: null, syncState: "PENDING", syncAttempts: 0, syncError: null } });
+  if (r.count === 1) await logReminder(id, "reopened", "Przypomnienie otwarte ponownie");
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
@@ -112,12 +129,14 @@ export async function rescheduleReminder(id: string, dueDate: string): Promise<R
   const dueAt = parseDateInput(dueDate);
   if (!dueAt) return { ok: false, error: "date" };
   const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { dueAt, allDay: true, syncState: "PENDING", syncAttempts: 0, syncError: null } });
+  if (r.count === 1) await logReminder(id, "rescheduled", `Przypomnienie przesunięte na ${dueDate}`, { dueDate });
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
 /** Anulowanie zostawia wiersz w bazie (status CANCELED), żeby n8n mógł skasować wydarzenie w kalendarzu Google. */
 export async function cancelReminder(id: string): Promise<ReminderResult> {
   const r = await prisma.reminder.updateMany({ where: { id, status: { not: "CANCELED" } }, data: { status: "CANCELED", syncState: "PENDING", syncAttempts: 0, syncError: null } });
+  if (r.count === 1) await logReminder(id, "canceled", "Przypomnienie anulowane");
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
@@ -137,6 +156,7 @@ export async function applyEventAutomations(tx: Tx, contactId: string, type: str
       const dueAt = parseDateInput(addDays(warsawDateOf(occurredAt), RECONNECT_DAYS));
       if (dueAt) {
         await tx.reminder.create({ data: { contactId, kind: "RECONNECT", dueAt, allDay: true, source: "AUTO", syncState: "PENDING", syncAttempts: 0, syncError: null } });
+        await logActivity({ source: "SYSTEM", action: "reminder.auto_created", contactId, summary: `Automatyczne przypomnienie o ponownym zaproszeniu (${warsawDateOf(dueAt)}): ${await contactName(contactId, tx)}` }, tx);
       }
     }
   } else if (type === "INVITE_SENT") {

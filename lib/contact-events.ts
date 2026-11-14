@@ -1,4 +1,6 @@
 import type { ArchiveReason, EventType, Prisma } from "@prisma/client";
+import { contactName, logActivity } from "./activity-log";
+import { EVENT_LABEL } from "./labels";
 import { prisma } from "./prisma";
 import { applyEventAutomations } from "./reminders";
 import { MEETING_TYPES, OUTCOME_TYPES } from "./meeting-sync-core";
@@ -60,6 +62,16 @@ export async function addEventTx(
   });
   await recomputeStage(tx, contactId);
   await applyEventAutomations(tx, contactId, data.type, data.occurredAt);
+  await logActivity(
+    {
+      source: opts.fromCalendar ? "SYNC" : "UI",
+      action: "event.added",
+      contactId,
+      summary: `${EVENT_LABEL[data.type]}: ${await contactName(contactId, tx)}${opts.fromCalendar ? " (z kalendarza)" : ""}`,
+      details: { type: data.type, occurredAt: data.occurredAt.toISOString(), ...(data.scheduledAt ? { scheduledAt: data.scheduledAt.toISOString() } : {}) },
+    },
+    tx,
+  );
   if (!opts.fromCalendar && affectsMeetings(data.type)) await markMeetingsPending(tx, contactId);
   return { ok: true };
 }
@@ -76,7 +88,7 @@ export type DeleteResult = { ok: true; contactId: string } | { ok: false; error:
 /** Usunięcie zdarzenia. Powiązane wydarzenie w kalendarzu zostaje usunięte przez synchronizację ("nagrobek"). */
 export async function deleteContactEvent(eventId: string): Promise<DeleteResult> {
   return prisma.$transaction(async (tx) => {
-    const event = await tx.contactEvent.findUnique({ where: { id: eventId }, select: { contactId: true, type: true, googleEventId: true, googleCalendarId: true } });
+    const event = await tx.contactEvent.findUnique({ where: { id: eventId }, select: { contactId: true, type: true, occurredAt: true, googleEventId: true, googleCalendarId: true } });
     if (!event) return { ok: false, error: "not-found" } as const;
     if (event.type === "BOM_COMPLETED") {
       // FU nie może istnieć bez odbytego BOM
@@ -95,17 +107,43 @@ export async function deleteContactEvent(eventId: string): Promise<DeleteResult>
       });
     }
     await recomputeStage(tx, event.contactId);
+    await logActivity(
+      { source: "UI", action: "event.deleted", contactId: event.contactId, summary: `Usunięto zdarzenie „${EVENT_LABEL[event.type]}": ${await contactName(event.contactId, tx)}`, details: { type: event.type, occurredAt: event.occurredAt.toISOString() } },
+      tx,
+    );
     if (affectsMeetings(event.type)) await markMeetingsPending(tx, event.contactId);
     return { ok: true, contactId: event.contactId } as const;
   });
 }
 
 export async function setArchived(contactId: string, reason: ArchiveReason | null) {
-  await prisma.contact.update({
-    where: { id: contactId },
-    data: reason
-      ? { archived: true, archiveReason: reason, archivedAt: new Date() }
-      : { archived: false, archiveReason: null, archivedAt: null },
+  await prisma.$transaction(async (tx) => {
+    await tx.contact.update({
+      where: { id: contactId },
+      data: reason
+        ? { archived: true, archiveReason: reason, archivedAt: new Date() }
+        : { archived: false, archiveReason: null, archivedAt: null },
+    });
+    await logActivity(
+      {
+        source: "UI",
+        action: reason ? "contact.archived" : "contact.unarchived",
+        contactId,
+        summary: `${reason ? "Zarchiwizowano" : "Przywrócono z archiwum"}: ${await contactName(contactId, tx)}`,
+        ...(reason ? { details: { reason } } : {}),
+      },
+      tx,
+    );
+  });
+}
+
+export async function setOpenToWork(contactId: string, value: boolean) {
+  await prisma.$transaction(async (tx) => {
+    await tx.contact.update({ where: { id: contactId }, data: { openToWork: value } });
+    await logActivity(
+      { source: "UI", action: "contact.otw_changed", contactId, summary: `OTW ${value ? "włączone" : "wyłączone"}: ${await contactName(contactId, tx)}`, details: { from: !value, to: value } },
+      tx,
+    );
   });
 }
 
@@ -113,5 +151,13 @@ export async function updateContactDetails(
   contactId: string,
   data: { salutation: string | null; email: string | null; phone: string | null; info: string | null },
 ) {
-  await prisma.contact.update({ where: { id: contactId }, data });
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.contact.findUnique({ where: { id: contactId }, select: { name: true, salutation: true, email: true, phone: true, info: true } });
+    await tx.contact.update({ where: { id: contactId }, data });
+    // w logu tylko nazwy zmienionych pól (e-mail i telefon to dane osobowe)
+    const changed = (["salutation", "email", "phone", "info"] as const).filter((k) => (before?.[k] ?? null) !== data[k]);
+    if (changed.length) {
+      await logActivity({ source: "UI", action: "contact.updated", contactId, summary: `Zmieniono dane kontaktu ${before?.name ?? ""}: ${changed.join(", ")}`, details: { fields: changed } }, tx);
+    }
+  });
 }

@@ -5,9 +5,13 @@ import { getAuthConfig } from "@/lib/auth/config";
 import { safeNext } from "@/lib/auth/redirect";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/auth/session";
 import { consumeChallenge, getRelyingParty, isSameOriginJson } from "@/lib/auth/webauthn";
+import { logActivity, logLoginFailure } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 
-const INVALID = () => Response.json({ error: "invalid" }, { status: 401 }); // jedna odpowiedź na wszystkie błędy weryfikacji
+const INVALID = async (reason: string) => {
+  await logLoginFailure("passkey", reason, null);
+  return Response.json({ error: "invalid" }, { status: 401 }); // jedna odpowiedź na wszystkie błędy weryfikacji
+};
 
 export async function POST(request: Request) {
   const rp = getRelyingParty(request);
@@ -26,10 +30,10 @@ export async function POST(request: Request) {
 
   // wyzwanie zużywamy zawsze, także przy błędzie: jedna próba na wyzwanie
   const expectedChallenge = await consumeChallenge("login");
-  if (!expectedChallenge) return INVALID();
+  if (!expectedChallenge) return INVALID("brak lub wygasłe wyzwanie");
 
   const passkey = await prisma.passkey.findUnique({ where: { credentialId: response.id } });
-  if (!passkey) return INVALID();
+  if (!passkey) return INVALID("nieznany klucz");
 
   let verification;
   try {
@@ -47,9 +51,9 @@ export async function POST(request: Request) {
       requireUserVerification: true,
     });
   } catch {
-    return INVALID();
+    return INVALID("weryfikacja podpisu nie powiodła się");
   }
-  if (!verification.verified) return INVALID();
+  if (!verification.verified) return INVALID("weryfikacja podpisu nie powiodła się");
 
   const newCounter = BigInt(verification.authenticationInfo.newCounter);
   await prisma.passkey.update({
@@ -58,5 +62,6 @@ export async function POST(request: Request) {
   });
 
   (await cookies()).set(SESSION_COOKIE, await createSessionToken(config.secret), sessionCookieOptions);
+  await logActivity({ source: "AUTH", action: "auth.login", summary: `Zalogowano kluczem dostępu: ${passkey.name}` });
   return Response.json({ ok: true, next: safeNext(body.next) });
 }

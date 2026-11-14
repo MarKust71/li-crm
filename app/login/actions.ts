@@ -6,6 +6,7 @@ import { getAuthConfig } from "@/lib/auth/config";
 import { safeNext } from "@/lib/auth/redirect";
 import { MAX_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/auth/session";
+import { logActivity, logLoginFailure } from "@/lib/activity-log";
 import { isLocked, recordAttempt } from "@/lib/auth/throttle";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -27,6 +28,7 @@ export async function loginAction(formData: FormData) {
 
   const ip = await clientIp();
   if (await isLocked(ip)) {
+    await logLoginFailure("password", "adres zablokowany po zbyt wielu próbach", ip);
     await sleep(500);
     back("locked", next);
   }
@@ -40,15 +42,18 @@ export async function loginAction(formData: FormData) {
   await recordAttempt(ip, ok);
 
   if (!ok) {
+    await logLoginFailure("password", "błędne hasło", ip);
     await sleep(600); // spowalnia zgadywanie
     back("invalid", next);
   }
 
   (await cookies()).set(SESSION_COOKIE, await createSessionToken(config!.secret), sessionCookieOptions);
+  await logActivity({ source: "AUTH", action: "auth.login", summary: "Zalogowano hasłem", details: { ip } });
   redirect(next);
 }
 
 export async function logoutAction() {
+  await logActivity({ source: "AUTH", action: "auth.logout", summary: "Wylogowano" });
   // usunięcie ciasteczka __Host- wymaga tych samych atrybutów (Secure, Path=/)
   (await cookies()).set(SESSION_COOKIE, "", { ...sessionCookieOptions, maxAge: 0 });
   redirect("/login");

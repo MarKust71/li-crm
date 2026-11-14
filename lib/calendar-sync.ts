@@ -1,3 +1,4 @@
+import { logActivity } from "./activity-log";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { extractEmail, extractPhone, extractProfileUrl, eventStartToDue, parseTitle, slugToName } from "./calendar-parse";
@@ -93,6 +94,20 @@ export type OpResult = {
 };
 
 export async function applyResults(results: OpResult[]) {
+  const out = await applyResultsInner(results);
+  if (out.synced || out.failed) {
+    await logActivity({
+      source: "SYNC",
+      level: out.failed ? "WARN" : "INFO",
+      action: "sync.push",
+      summary: `Wysłano do kalendarza: ${out.synced} OK${out.failed ? `, ${out.failed} z błędem` : ""}${out.stale ? `, ${out.stale} do ponowienia (zmienione w międzyczasie)` : ""}`,
+      details: out,
+    });
+  }
+  return out;
+}
+
+async function applyResultsInner(results: OpResult[]) {
   let synced = 0, failed = 0, stale = 0;
   for (const res of results) {
     const refType = res.refType ?? "reminder";
@@ -158,6 +173,22 @@ function durationOf(e: CalendarEventLite, start: Date): number {
 
 /** Zmiany z kalendarza (zdarzenia zmienione od kursora). `cursor` = moment rozpoczęcia pobierania po stronie n8n. */
 export async function applyCalendarChanges(events: CalendarEventLite[], cursor: Date | null): Promise<PullSummary> {
+  const sum = await applyCalendarChangesInner(events, cursor);
+  const changed = sum.updated + sum.canceled + sum.linked + sum.created + sum.outcomes;
+  if (changed > 0) {
+    const parts = [
+      sum.created && `${sum.created} nowych`,
+      sum.updated && `${sum.updated} zmienionych`,
+      sum.canceled && `${sum.canceled} anulowanych`,
+      sum.linked && `${sum.linked} powiązanych`,
+      sum.outcomes && `${sum.outcomes} wyników spotkań`,
+    ].filter(Boolean);
+    await logActivity({ source: "SYNC", action: "sync.pull", summary: `Zmiany z kalendarza: ${parts.join(", ")}`, details: { ...sum, unmatched: sum.unmatched.slice(0, 20) } });
+  }
+  return sum;
+}
+
+async function applyCalendarChangesInner(events: CalendarEventLite[], cursor: Date | null): Promise<PullSummary> {
   const sum: PullSummary = { updated: 0, canceled: 0, linked: 0, created: 0, outcomes: 0, skipped: {}, unmatched: [] };
   const skip = (k: string) => (sum.skipped[k] = (sum.skipped[k] ?? 0) + 1);
   let nameIndex: Map<string, string[]> | null = null;
@@ -339,6 +370,7 @@ async function discoverReminder(e: CalendarEventLite, sum: PullSummary, skip: (k
 
 export async function recordError(message: string) {
   await setSetting(KEYS.lastError, message.slice(0, 500));
+  await logActivity({ source: "SYNC", level: "ERROR", action: "sync.error", summary: `Błąd synchronizacji: ${message.slice(0, 300)}` });
 }
 
 export async function syncStatus() {

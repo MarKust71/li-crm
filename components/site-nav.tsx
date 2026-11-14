@@ -9,7 +9,7 @@ import pkg from "../package.json";
 import { countDue } from "@/lib/reminders";
 import { getRunningEntry } from "@/lib/time";
 
-type Props = { current: "contacts" | "today" | "time" | "stats" | "settings" | "security" };
+type Props = { current: "contacts" | "today" | "time" | "stats" | "log" | "settings" | "security" };
 
 /** Wspólna nawigacja; gdy trwa sesja czasu pracy, pokazuje jej licznik na każdej stronie. */
 export function SiteNav({ current }: Props) {
@@ -35,6 +35,9 @@ export function SiteNav({ current }: Props) {
       </Suspense>
       <Button asChild size="sm" variant={current === "stats" ? "secondary" : "ghost"}>
         <Link href="/stats">Statystyki</Link>
+      </Button>
+      <Button asChild size="sm" variant={current === "log" ? "secondary" : "ghost"}>
+        <Link href="/log">Dziennik</Link>
       </Button>
       <Button asChild size="sm" variant={current === "settings" ? "secondary" : "ghost"}>
         <Link href="/settings">Ustawienia</Link>

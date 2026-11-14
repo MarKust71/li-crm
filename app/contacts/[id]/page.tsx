@@ -106,13 +106,18 @@ async function ContactCard({ params, searchParams }: Props) {
           <Badge variant="outline" className="font-semibold">
             {STAGE_LABEL[contact.stage]}
           </Badge>
-          {contact.openToWork && <Badge>OTW</Badge>}
           {contact.archived && <Badge variant="outline">zarchiwizowany</Badge>}
           <form action={toggleOpenToWorkAction}>
             <input type="hidden" name="id" value={contact.id} />
             <input type="hidden" name="value" value={contact.openToWork ? "0" : "1"} />
-            <SubmitButton variant="outline" size="xs" pendingLabel="Zapisuję…">
-              {contact.openToWork ? "Zdejmij OTW" : "Oznacz OTW"}
+            <SubmitButton
+              variant={contact.openToWork ? "default" : "outline"}
+              size="xs"
+              aria-pressed={contact.openToWork}
+              title={contact.openToWork ? "Open to work: włączone (kliknij, aby wyłączyć)" : "Open to work: wyłączone (kliknij, aby włączyć)"}
+              className="rounded-full font-semibold"
+            >
+              OTW
             </SubmitButton>
           </form>
         </div>
