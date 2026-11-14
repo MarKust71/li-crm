@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PAGE_SIZE, listContacts, listTagNames, parseFilters, type ContactFilters } from "@/lib/contacts";
@@ -15,6 +16,8 @@ export const metadata: Metadata = { title: "Kontakty · li-crm" };
 const dateFormat = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeZone: "Europe/Warsaw" });
 
 // Pole filtra: etykieta nad kontrolką; na wąskim ekranie pola zajmują pełną szerokość.
+// Nagłówek tabeli przyklejony do górnej krawędzi obszaru listy (cień zamiast ramki, bo ramki znikają przy sticky).
+const stickyHead = "sticky top-0 z-10 bg-muted shadow-[inset_0_-1px_0_var(--border)]";
 const fieldWrap = "flex min-w-36 flex-col gap-1 text-xs text-muted-foreground max-sm:flex-1 max-sm:basis-36";
 
 function pageHref(f: ContactFilters, page: number): string {
@@ -35,11 +38,11 @@ type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 // Dane zależą od żądania (searchParams, baza), więc muszą być w <Suspense> (cacheComponents).
 export default function ContactsPage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6">
-      <header className="mb-4">
+    <main className="mx-auto flex h-dvh w-full max-w-6xl flex-col gap-3 px-4 pb-3 pt-4">
+      <header className="shrink-0">
         <h1 className="text-2xl font-semibold">Kontakty</h1>
       </header>
-      <Suspense fallback={<p className="mb-3 text-sm text-muted-foreground">Ładuję kontakty…</p>}>
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakty…</p>}>
         <ContactsContent searchParams={searchParams} />
       </Suspense>
     </main>
@@ -55,81 +58,105 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
     filters.q || filters.stage || filters.direction || filters.tag || filters.otw || filters.archived !== "active",
   );
 
+  const active: string[] = [];
+  if (filters.q) active.push(`Szukaj: ${filters.q}`);
+  if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
+  if (filters.direction) active.push(`Kierunek: ${DIRECTION_LABEL[filters.direction]}`);
+  if (filters.tag) active.push(`Tag: ${filters.tag}`);
+  if (filters.otw) active.push("Open to work");
+  if (filters.archived === "only") active.push("Tylko zarchiwizowane");
+  if (filters.archived === "all") active.push("Z zarchiwizowanymi");
+
   return (
     <>
-      <p className="mb-3 text-sm text-muted-foreground">
+      <p className="shrink-0 text-sm text-muted-foreground">
         {total === 0 ? "Brak wyników" : `${from}–${to} z ${total.toLocaleString("pl-PL")}`}
       </p>
 
-      <form className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border p-3" method="get" action="/contacts">
-        <div className={`${fieldWrap} flex-1 basis-64`}>
-          <Label htmlFor="q">Szukaj</Label>
-          <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
-        </div>
-        <div className={fieldWrap}>
-          <Label htmlFor="stage">Etap</Label>
-          <NativeSelect id="stage" name="stage" defaultValue={filters.stage}>
-            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
-            {STAGES.map((s) => (
-              <NativeSelectOption key={s.value} value={s.value}>
-                {s.label}
-              </NativeSelectOption>
+      <details className="group shrink-0 rounded-lg border" open={hasFilters}>
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+          Filtry
+          <span className="flex flex-wrap gap-1 font-normal">
+            {active.map((a) => (
+              <Badge key={a} variant="secondary" className="max-w-56 truncate">
+                {a}
+              </Badge>
             ))}
-          </NativeSelect>
-        </div>
-        <div className={fieldWrap}>
-          <Label htmlFor="direction">Kierunek</Label>
-          <NativeSelect id="direction" name="direction" defaultValue={filters.direction}>
-            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
-            {DIRECTIONS.map((d) => (
-              <NativeSelectOption key={d.value} value={d.value}>
-                {d.label}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className={fieldWrap}>
-          <Label htmlFor="tag">Tag</Label>
-          <NativeSelect id="tag" name="tag" defaultValue={filters.tag}>
-            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
-            {tags.map((t) => (
-              <NativeSelectOption key={t} value={t}>
-                {t}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <div className={fieldWrap}>
-          <Label htmlFor="archived">Zarchiwizowane</Label>
-          <NativeSelect id="archived" name="archived" defaultValue={filters.archived}>
-            <NativeSelectOption value="active">Ukryte</NativeSelectOption>
-            <NativeSelectOption value="only">Tylko zarchiwizowane</NativeSelectOption>
-            <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
-          </NativeSelect>
-        </div>
-        <Label className="h-8 gap-1.5 text-xs text-muted-foreground">
-          <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} className="size-4 accent-primary" />
-          Open to work
-        </Label>
-        <div className="flex items-center gap-2">
-          <Button type="submit">Filtruj</Button>
-          {hasFilters && (
-            <Button asChild variant="ghost">
-              <Link href="/contacts">Wyczyść</Link>
-            </Button>
-          )}
-        </div>
-      </form>
+          </span>
+        </summary>
+        <form className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3" method="get" action="/contacts">
+          <div className={`${fieldWrap} flex-1 basis-64`}>
+            <Label htmlFor="q">Szukaj</Label>
+            <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="stage">Etap</Label>
+            <NativeSelect id="stage" name="stage" defaultValue={filters.stage}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {STAGES.map((s) => (
+                <NativeSelectOption key={s.value} value={s.value}>
+                  {s.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="direction">Kierunek</Label>
+            <NativeSelect id="direction" name="direction" defaultValue={filters.direction}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {DIRECTIONS.map((d) => (
+                <NativeSelectOption key={d.value} value={d.value}>
+                  {d.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="tag">Tag</Label>
+            <NativeSelect id="tag" name="tag" defaultValue={filters.tag}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {tags.map((t) => (
+                <NativeSelectOption key={t} value={t}>
+                  {t}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="archived">Zarchiwizowane</Label>
+            <NativeSelect id="archived" name="archived" defaultValue={filters.archived}>
+              <NativeSelectOption value="active">Ukryte</NativeSelectOption>
+              <NativeSelectOption value="only">Tylko zarchiwizowane</NativeSelectOption>
+              <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
+            </NativeSelect>
+          </div>
+          <Label className="h-8 gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} className="size-4 accent-primary" />
+            Open to work
+          </Label>
+          <div className="flex items-center gap-2">
+            <Button type="submit">Filtruj</Button>
+            {hasFilters && (
+              <Button asChild variant="ghost">
+                <Link href="/contacts">Wyczyść</Link>
+              </Button>
+            )}
+          </div>
+        </form>
+      </details>
 
-      <div className="rounded-lg border">
-        <Table>
+      {/* Lista przewija się we własnym obszarze, więc filtry i stronicowanie są zawsze widoczne,
+          a nagłówek tabeli przykleja się do góry tego obszaru. */}
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+        <Table containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
-              <TableHead>Osoba</TableHead>
-              <TableHead>Etap</TableHead>
-              <TableHead>Kierunek</TableHead>
-              <TableHead>Tagi</TableHead>
-              <TableHead>Ostatnia aktywność</TableHead>
+              {["Osoba", "Etap", "Kierunek", "Tagi", "Ostatnia aktywność"].map((h) => (
+                <TableHead key={h} className={stickyHead}>
+                  {h}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -178,7 +205,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
       </div>
 
       {pages > 1 && (
-        <nav className="mt-4 flex items-center justify-between gap-3 text-sm" aria-label="Strony">
+        <nav className="flex shrink-0 items-center justify-between gap-3 text-sm" aria-label="Strony">
           {page > 1 ? (
             <Link href={pageHref(filters, page - 1)} className="underline">
               ← Poprzednia
