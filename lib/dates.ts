@@ -54,3 +54,26 @@ const inputFmt = new Intl.DateTimeFormat("sv-SE", {
 export function toDateTimeInput(d: Date): string {
   return inputFmt.format(d).replace(" ", "T");
 }
+
+/** Data kalendarzowa chwili w Warszawie jako "YYYY-MM-DD". */
+export function warsawDateOf(d: Date): string {
+  return toDateTimeInput(d).slice(0, 10);
+}
+
+/** "YYYY-MM-DD" + liczba dni (arytmetyka na dacie kalendarzowej, bez przesunięć przez zmianę czasu). */
+export function addDays(dateInput: string, n: number): string {
+  const [y, m, d] = dateInput.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+export type DelayUnit = "days" | "weeks" | "months";
+
+/** Jak `$now.plus(n, unit)` w n8n: miesiące liczone kalendarzowo, z obcięciem do końca miesiąca (31.01 + 1 mies. = 28/29.02). */
+export function addDelay(dateInput: string, n: number, unit: DelayUnit): string {
+  if (unit === "days") return addDays(dateInput, n);
+  if (unit === "weeks") return addDays(dateInput, n * 7);
+  const [y, m, d] = dateInput.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + n, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(d, lastDay))).toISOString().slice(0, 10);
+}

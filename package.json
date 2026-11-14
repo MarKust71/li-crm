@@ -12,7 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "snapshot": "tsx scripts/snapshot-sheets.ts",
-    "import": "tsx scripts/import-sheets.ts"
+    "import": "tsx scripts/import-sheets.ts",
+    "snapshot:calendar": "tsx scripts/snapshot-calendar.ts",
+    "import:calendar": "tsx scripts/import-calendar.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
