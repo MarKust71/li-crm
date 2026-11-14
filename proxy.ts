@@ -20,6 +20,8 @@ export async function proxy(request: NextRequest) {
 
   // endpointy logowania kluczem dostępu (kolejny etap) są publiczne: same weryfikują podpis
   if (pathname.startsWith("/api/auth/")) return NextResponse.next();
+  // endpointy synchronizacji (n8n) sprawdzają klucz API (SYNC_API_KEY) same
+  if (pathname.startsWith("/api/sync/")) return NextResponse.next();
 
   if (pathname === "/login") {
     // zalogowany użytkownik nie potrzebuje formularza

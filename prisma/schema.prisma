@@ -192,6 +192,12 @@ enum ReminderStatus {
   CANCELED // usunięte z listy; zostaje w bazie, żeby n8n mógł skasować wydarzenie w kalendarzu
 }
 
+enum SyncState {
+  PENDING // zmiana w aplikacji czeka na wysłanie do kalendarza
+  SYNCED
+  ERROR   // ostatnia próba się nie udała (ponawiana do 5 razy)
+}
+
 enum ReminderSource {
   APP    // dodane ręcznie w aplikacji
   AUTO   // utworzone automatycznie (re-connect po wycofaniu zaproszenia)
@@ -211,6 +217,11 @@ model Reminder {
   source           ReminderSource @default(APP)
   googleEventId    String?        // id wydarzenia w kalendarzu Google
   googleCalendarId String?
+  calendarTitle    String?        // tytuł wydarzenia BEZ znacznika odbycia ("v ", "x ", "- "); znacznik wynika ze statusu
+  syncState        SyncState      @default(SYNCED) // PENDING = zmiana w aplikacji czeka na wysłanie do kalendarza
+  syncError        String?
+  syncAttempts     Int            @default(0)
+  calendarUpdatedAt DateTime?     // pole "updated" wydarzenia przy ostatniej synchronizacji (odfiltrowuje echo własnych zmian)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -255,4 +266,13 @@ model AuthChallenge {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+// ───────────────────── Ustawienia aplikacji (klucz → wartość) ─────────────────────
+// Klucze (patrz lib/settings.ts): calendarSync.intervalMinutes, calendarSync.lastRunAt, calendarSync.manualRequestedAt,
+// calendarSync.pullCursor, calendarSync.lastError.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

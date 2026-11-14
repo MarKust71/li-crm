@@ -93,31 +93,31 @@ export async function createReminder(input: {
   const exists = await prisma.contact.findUnique({ where: { id: input.contactId }, select: { id: true } });
   if (!exists) return { ok: false, error: "notfound" };
   await prisma.reminder.create({
-    data: { contactId: input.contactId, kind: input.kind, dueAt, allDay: true, note: input.note, source: input.source },
+    data: { contactId: input.contactId, kind: input.kind, dueAt, allDay: true, note: input.note, source: input.source, syncState: "PENDING", syncAttempts: 0, syncError: null },
   });
   return { ok: true };
 }
 
 export async function completeReminder(id: string): Promise<ReminderResult> {
-  const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { status: "DONE", doneAt: new Date() } });
+  const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { status: "DONE", doneAt: new Date(), syncState: "PENDING", syncAttempts: 0, syncError: null } });
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
 export async function reopenReminder(id: string): Promise<ReminderResult> {
-  const r = await prisma.reminder.updateMany({ where: { id, status: "DONE" }, data: { status: "OPEN", doneAt: null } });
+  const r = await prisma.reminder.updateMany({ where: { id, status: "DONE" }, data: { status: "OPEN", doneAt: null, syncState: "PENDING", syncAttempts: 0, syncError: null } });
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
 export async function rescheduleReminder(id: string, dueDate: string): Promise<ReminderResult> {
   const dueAt = parseDateInput(dueDate);
   if (!dueAt) return { ok: false, error: "date" };
-  const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { dueAt, allDay: true } });
+  const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { dueAt, allDay: true, syncState: "PENDING", syncAttempts: 0, syncError: null } });
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
 /** Anulowanie zostawia wiersz w bazie (status CANCELED), żeby n8n mógł skasować wydarzenie w kalendarzu Google. */
 export async function cancelReminder(id: string): Promise<ReminderResult> {
-  const r = await prisma.reminder.updateMany({ where: { id, status: { not: "CANCELED" } }, data: { status: "CANCELED" } });
+  const r = await prisma.reminder.updateMany({ where: { id, status: { not: "CANCELED" } }, data: { status: "CANCELED", syncState: "PENDING", syncAttempts: 0, syncError: null } });
   return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
@@ -136,13 +136,13 @@ export async function applyEventAutomations(tx: Tx, contactId: string, type: str
     if (open === 0) {
       const dueAt = parseDateInput(addDays(warsawDateOf(occurredAt), RECONNECT_DAYS));
       if (dueAt) {
-        await tx.reminder.create({ data: { contactId, kind: "RECONNECT", dueAt, allDay: true, source: "AUTO" } });
+        await tx.reminder.create({ data: { contactId, kind: "RECONNECT", dueAt, allDay: true, source: "AUTO", syncState: "PENDING", syncAttempts: 0, syncError: null } });
       }
     }
   } else if (type === "INVITE_SENT") {
     await tx.reminder.updateMany({
       where: { contactId, kind: "RECONNECT", status: "OPEN" },
-      data: { status: "DONE", doneAt: new Date() },
+      data: { status: "DONE", doneAt: new Date(), syncState: "PENDING", syncAttempts: 0, syncError: null },
     });
   }
 }

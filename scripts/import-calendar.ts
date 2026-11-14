@@ -8,8 +8,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ReminderKind, ReminderStatus } from "@prisma/client";
+import { eventStartToDue, extractEmail, extractPhone, extractProfileUrl, extractThreadUrl, parseTitle, slugToName } from "../lib/calendar-parse";
 import { normalizeProfileUrl } from "../lib/profile-url";
-import { warsawToUtc } from "../lib/dates";
 
 const APPLY = process.argv.includes("--apply");
 
@@ -21,94 +21,6 @@ type CalEvent = {
   updated?: string;
 };
 const snap = JSON.parse(readFileSync("data/snapshots/calendar/dMb.json", "utf8")) as { calendarId: string; events: CalEvent[] };
-
-// ───────────────────────── parsowanie ─────────────────────────
-
-const safeDecode = (s: string) => {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
-};
-
-/** Adres profilu z opisu: zwykły tekst, HTML (<a href>) albo przekierowanie google.com/url?q=… */
-function extractProfileUrl(description: string): string | null {
-  const text = description
-    .replace(/&amp;/g, "&")
-    .replace(/https?:\/\/www\.google\.com\/url\?q=([^&"'<> ]+)[^"'<> ]*/gi, (_, u: string) => safeDecode(u));
-  const m = /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/in\/([^\s"'<>)?&#/]+)/i.exec(text);
-  return m ? `https://www.linkedin.com/in/${m[1]}` : null;
-}
-
-const THREAD_RE = /https?:\/\/(?:www\.)?linkedin\.com\/messaging\/thread\/[^\s"'<>]+/i;
-const EMAIL_RE = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
-
-function plainLines(description: string): string[] {
-  return description
-    .replace(/<br\s*\/?>|<\/p>|<\/div>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-}
-
-function extractEmail(description: string): string | null {
-  for (const line of plainLines(description)) if (!/https?:/.test(line)) { const m = EMAIL_RE.exec(line); if (m) return m[0].toLowerCase(); }
-  return null;
-}
-
-/** Telefon: linia złożona z cyfr, spacji, +, - (co najmniej 9 cyfr), bez adresów. */
-function extractPhone(description: string): string | null {
-  for (const line of plainLines(description)) {
-    if (/https?:|@/.test(line)) continue;
-    if (/^[+\d][\d\s-]{7,}$/.test(line) && line.replace(/\D/g, "").length >= 9) return line;
-  }
-  return null;
-}
-
-const MARKER_RE = /^\s*([vVxX-])\s+/;
-
-type Parsed = {
-  status: ReminderStatus;
-  kind: ReminderKind;
-  note: string | null;
-  name: string | null;
-  skipReason?: string;
-};
-
-function parseTitle(rawTitle: string): Parsed {
-  const marker = MARKER_RE.exec(rawTitle)?.[1];
-  const title = rawTitle.replace(MARKER_RE, "").replace(/\s+/g, " ").trim();
-  const status: ReminderStatus = marker ? "DONE" : "OPEN";
-
-  // spotkania (BOM) i follow-upy to nie przypomnienia: pomijamy (decyzja użytkownika)
-  // także z prefiksem niepewności: "? BP: …", "<> BP: …"
-  if (/^(?:Mój\s+|[?<>\s]+)?BP\s*:/i.test(title)) return { status, kind: "REMINDER", note: null, name: null, skipReason: "spotkanie BP" };
-  if (/^FU\s*:/i.test(title)) return { status, kind: "REMINDER", note: null, name: null, skipReason: "follow-up FU" };
-
-  let m = /dMb Li (reminder|reconnect):\s*(.+)$/i.exec(title);
-  if (m) return { status, kind: m[1].toLowerCase() === "reconnect" ? "RECONNECT" : "REMINDER", note: null, name: m[2].trim() };
-
-  m = /^dMb Li\s*:\s*(.+)$/i.exec(title); // "dMb Li: Imię Nazwisko"
-  if (m) return { status, kind: "REMINDER", note: null, name: m[1].trim() };
-
-  m = /^(?:dMb Li|LI)\s+(.+?)\s*(?::|\s-\s)\s*(.+)$/.exec(title); // "dMb Li Imię Nazwisko: umówić BP"
-  if (m) return { status, kind: "REMINDER", note: m[2].trim(), name: m[1].trim() };
-
-  m = /^(?:dMb Li|LI)\s+(.+)$/.exec(title); // "dMb Li Imię Nazwisko" (bez czynności)
-  if (m) return { status, kind: "REMINDER", note: null, name: m[1].trim() };
-
-  // pozostałe tytuły ("Przypomnienie: …", "BP - decyzja: …", "dMb: ponowić umówienie terminu - Imię"): cały tytuł jako notatka
-  const nameAfterDash = / - ([^-:]+)$/.exec(title)?.[1]?.trim() ?? null;
-  return { status, kind: "REMINDER", note: title, name: nameAfterDash };
-}
-
-function slugToName(url: string): string {
-  const slug = url.split("/in/")[1] ?? url;
-  return slug.replace(/-[0-9a-f]{6,}$/i, "").replace(/-/g, " ").replace(/\b\p{L}/gu, (c) => c.toUpperCase());
-}
 
 // ───────────────────────── przetwarzanie ─────────────────────────
 
@@ -142,15 +54,10 @@ for (const e of snap.events) {
   const p = parseTitle(e.summary ?? "");
   if (p.skipReason) { skipped.push({ title: e.summary ?? "", reason: p.skipReason }); continue; }
 
-  const allDay = Boolean(e.start.date);
-  let dueAt: Date;
-  if (e.start.date) {
-    const [y, mo, d] = e.start.date.split("-").map(Number);
-    dueAt = warsawToUtc(y, mo, d);
-  } else {
-    dueAt = new Date(e.start.dateTime!);
-  }
-  const thread = THREAD_RE.exec(e.description.replace(/&amp;/g, "&"))?.[0] ?? null;
+  const due = eventStartToDue(e.start);
+  if (!due) { unparsableUrl.push(e.summary ?? e.id); continue; }
+  const { dueAt, allDay } = due;
+  const thread = extractThreadUrl(e.description);
   const note = [p.note, thread ? `Wątek: ${thread}` : null].filter(Boolean).join("\n") || null;
 
   items.push({
