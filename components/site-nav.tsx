@@ -9,7 +9,7 @@ import pkg from "../package.json";
 import { countDue } from "@/lib/reminders";
 import { getRunningEntry } from "@/lib/time";
 
-type Props = { current: "contacts" | "today" | "time" };
+type Props = { current: "contacts" | "today" | "time" | "security" };
 
 /** Wspólna nawigacja; gdy trwa sesja czasu pracy, pokazuje jej licznik na każdej stronie. */
 export function SiteNav({ current }: Props) {
@@ -33,6 +33,9 @@ export function SiteNav({ current }: Props) {
       <Suspense fallback={null}>
         <RunningBadge />
       </Suspense>
+      <Button asChild size="sm" variant={current === "security" ? "secondary" : "ghost"}>
+        <Link href="/security">Bezpieczeństwo</Link>
+      </Button>
       <span className="ml-2 text-xs tabular-nums text-muted-foreground" title="Wersja aplikacji (package.json)">
         v{pkg.version}
       </span>
