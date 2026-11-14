@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { SubmitButton } from "@/components/submit-button";
 import { SiteNav } from "@/components/site-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +102,7 @@ async function ContactCard({ params, searchParams }: Props) {
           <h1 className="break-words text-2xl font-semibold">{contact.name}</h1>
           {contact.occupation && <p className="mt-1 text-[0.95rem] text-muted-foreground">{contact.occupation}</p>}
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline" className="font-semibold">
             {STAGE_LABEL[contact.stage]}
           </Badge>
@@ -110,9 +111,9 @@ async function ContactCard({ params, searchParams }: Props) {
           <form action={toggleOpenToWorkAction}>
             <input type="hidden" name="id" value={contact.id} />
             <input type="hidden" name="value" value={contact.openToWork ? "0" : "1"} />
-            <Button type="submit" variant="outline" size="sm">
+            <SubmitButton variant="outline" size="xs" pendingLabel="Zapisuję…">
               {contact.openToWork ? "Zdejmij OTW" : "Oznacz OTW"}
-            </Button>
+            </SubmitButton>
           </form>
         </div>
       </header>
