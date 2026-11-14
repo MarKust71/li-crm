@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { DeleteEventDialog } from "@/components/delete-event-dialog";
 import { getContact } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
 import {
@@ -38,16 +39,16 @@ const dateTimeFmt = new Intl.DateTimeFormat("pl-PL", {
 });
 
 // Wspólne style (do czasu przejścia na komponenty shadcn).
-const panel = "rounded-lg border border-line p-4";
+const panel = "rounded-lg border border-border p-4";
 const h2 = "mb-3 text-base font-semibold";
 const pill = "inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs";
 const form = "mt-2.5 flex flex-col gap-2.5";
-const label = "flex flex-col gap-1 text-xs text-muted";
-const field = "rounded-md border border-line bg-background px-2 py-1.5 text-sm text-foreground";
-const btn = "cursor-pointer self-start rounded-md border border-line bg-background px-3.5 py-2 text-sm text-foreground";
+const label = "flex flex-col gap-1 text-xs text-muted-foreground";
+const field = "rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground";
+const btn = "cursor-pointer self-start rounded-md border border-border bg-background px-3.5 py-2 text-sm text-foreground";
 const btnPrimary =
   "cursor-pointer self-start rounded-md border border-foreground bg-foreground px-3.5 py-2 text-sm text-background";
-const summary = "cursor-pointer text-muted";
+const summary = "cursor-pointer text-muted-foreground";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -57,10 +58,10 @@ type Props = {
 export default function ContactPage({ params, searchParams }: Props) {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6">
-      <Link href="/contacts" className="mb-3 inline-block text-sm text-muted underline">
+      <Link href="/contacts" className="mb-3 inline-block text-sm text-muted-foreground underline">
         ← Kontakty
       </Link>
-      <Suspense fallback={<p className="text-sm text-muted">Ładuję kontakt…</p>}>
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakt…</p>}>
         <ContactCard params={params} searchParams={searchParams} />
       </Suspense>
     </main>
@@ -84,17 +85,17 @@ async function ContactCard({ params, searchParams }: Props) {
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="break-words text-2xl font-semibold">{contact.name}</h1>
-          {contact.occupation && <p className="mt-1 text-[0.95rem] text-muted">{contact.occupation}</p>}
+          {contact.occupation && <p className="mt-1 text-[0.95rem] text-muted-foreground">{contact.occupation}</p>}
         </div>
         <div className="flex flex-wrap gap-1.5">
           <span className={`${pill} border border-foreground font-semibold`}>{STAGE_LABEL[contact.stage]}</span>
           {contact.openToWork && <span className={`${pill} bg-foreground text-background`}>OTW</span>}
-          {contact.archived && <span className={`${pill} border border-line bg-soft`}>zarchiwizowany</span>}
+          {contact.archived && <span className={`${pill} border border-border bg-muted`}>zarchiwizowany</span>}
         </div>
       </header>
 
       {error && (
-        <p role="alert" className="mb-4 rounded-md border border-danger px-3 py-2.5 text-sm text-danger">
+        <p role="alert" className="mb-4 rounded-md border border-destructive px-3 py-2.5 text-sm text-destructive">
           {error}
         </p>
       )}
@@ -102,7 +103,7 @@ async function ContactCard({ params, searchParams }: Props) {
       <div className="mb-4 grid gap-4 md:grid-cols-2">
         <section className={panel}>
           <h2 className={h2}>Dane</h2>
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm [&>dt]:text-muted [&>dd]:break-words">
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm [&>dt]:text-muted-foreground [&>dd]:break-words">
             <dt>Profil</dt>
             <dd>
               <a href={contact.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
@@ -149,7 +150,7 @@ async function ContactCard({ params, searchParams }: Props) {
                 <dt>Tagi</dt>
                 <dd className="flex flex-wrap gap-1">
                   {tags.map((t) => (
-                    <span key={t} className={`${pill} border border-line bg-soft`}>
+                    <span key={t} className={`${pill} border border-border bg-muted`}>
                       {t}
                     </span>
                   ))}
@@ -165,7 +166,7 @@ async function ContactCard({ params, searchParams }: Props) {
           </dl>
           {contact.info && (
             <>
-              <h3 className="mb-1.5 mt-4 text-sm text-muted">Notatki</h3>
+              <h3 className="mb-1.5 mt-4 text-sm text-muted-foreground">Notatki</h3>
               <p className="whitespace-pre-wrap break-words text-sm">{contact.info}</p>
             </>
           )}
@@ -253,7 +254,7 @@ async function ContactCard({ params, searchParams }: Props) {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted">Dla tego etapu nie ma proponowanego kroku. Użyj „Inne zdarzenie”.</p>
+              <p className="text-sm text-muted-foreground">Dla tego etapu nie ma proponowanego kroku. Użyj „Inne zdarzenie”.</p>
             )}
           </form>
 
@@ -294,39 +295,28 @@ async function ContactCard({ params, searchParams }: Props) {
       <section className={panel}>
         <h2 className={h2}>Historia ({contact.events.length})</h2>
         {contact.events.length === 0 ? (
-          <p className="text-sm text-muted">Brak zdarzeń.</p>
+          <p className="text-sm text-muted-foreground">Brak zdarzeń.</p>
         ) : (
-          <ol className="border-l-2 border-line pl-4">
+          <ol className="border-l-2 border-border pl-4">
             {contact.events.map((e) => (
               <li
                 key={e.id}
                 className="relative pb-4 before:absolute before:-left-[22px] before:top-1.5 before:size-2.5 before:rounded-full before:bg-foreground before:content-['']"
               >
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-[0.85rem] text-muted">
+                  <span className="text-[0.85rem] text-muted-foreground">
                     {dateFmt.format(e.occurredAt)}
                     {e.dateUnknown && <em className="not-italic text-warn"> · data nieznana</em>}
                   </span>
                   <strong>{EVENT_LABEL[e.type]}</strong>
                 </div>
-                {e.scheduledAt && <p className="text-sm text-muted">Termin: {dateTimeFmt.format(e.scheduledAt)}</p>}
+                {e.scheduledAt && <p className="text-sm text-muted-foreground">Termin: {dateTimeFmt.format(e.scheduledAt)}</p>}
                 {e.message && (
-                  <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-soft px-2.5 py-2 text-sm">
+                  <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted px-2.5 py-2 text-sm">
                     {e.message}
                   </p>
                 )}
-                <details className="mt-1 text-xs">
-                  <summary className={summary}>usuń</summary>
-                  <form action={deleteEventAction}>
-                    <input type="hidden" name="eventId" value={e.id} />
-                    <button
-                      type="submit"
-                      className="mt-1.5 cursor-pointer rounded-md border border-danger bg-background px-3.5 py-2 text-sm text-danger"
-                    >
-                      Potwierdź usunięcie
-                    </button>
-                  </form>
-                </details>
+                <DeleteEventDialog eventId={e.id} action={deleteEventAction} />
               </li>
             ))}
           </ol>

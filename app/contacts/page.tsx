@@ -2,20 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PAGE_SIZE, listContacts, listTagNames, parseFilters, type ContactFilters } from "@/lib/contacts";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DIRECTIONS, DIRECTION_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kontakty · li-crm" };
 
 const dateFormat = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeZone: "Europe/Warsaw" });
 
-// Wspólne style (do czasu przejścia na komponenty shadcn).
-const label = "flex flex-col gap-1 text-xs text-muted max-sm:flex-1 max-sm:basis-36";
-const field =
-  "min-w-36 rounded-md border border-line bg-background px-2 py-1.5 text-sm text-foreground max-sm:w-full max-sm:min-w-0";
-const pill = "inline-block whitespace-nowrap rounded-full px-2 py-px text-xs";
-const th =
-  "whitespace-nowrap border-b border-line bg-soft px-3 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-wide text-muted";
-const td = "border-b border-line px-3 py-2.5 align-top";
+// Pole filtra: etykieta nad kontrolką; na wąskim ekranie pola zajmują pełną szerokość.
+const fieldWrap = "flex min-w-36 flex-col gap-1 text-xs text-muted-foreground max-sm:flex-1 max-sm:basis-36";
 
 function pageHref(f: ContactFilters, page: number): string {
   const p = new URLSearchParams();
@@ -39,7 +39,7 @@ export default function ContactsPage({ searchParams }: { searchParams: SearchPar
       <header className="mb-4">
         <h1 className="text-2xl font-semibold">Kontakty</h1>
       </header>
-      <Suspense fallback={<p className="mb-3 text-sm text-muted">Ładuję kontakty…</p>}>
+      <Suspense fallback={<p className="mb-3 text-sm text-muted-foreground">Ładuję kontakty…</p>}>
         <ContactsContent searchParams={searchParams} />
       </Suspense>
     </main>
@@ -57,136 +57,124 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
 
   return (
     <>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-3 text-sm text-muted-foreground">
         {total === 0 ? "Brak wyników" : `${from}–${to} z ${total.toLocaleString("pl-PL")}`}
       </p>
 
-      <form className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line p-3" method="get" action="/contacts">
-        <label className={`${label} flex-1 basis-64`}>
-          <span>Szukaj</span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.q}
-            placeholder="Imię, nazwisko lub adres profilu"
-            className={`${field} w-full`}
-          />
-        </label>
-        <label className={label}>
-          <span>Etap</span>
-          <select name="stage" defaultValue={filters.stage} className={field}>
-            <option value="">Wszystkie</option>
+      <form className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border p-3" method="get" action="/contacts">
+        <div className={`${fieldWrap} flex-1 basis-64`}>
+          <Label htmlFor="q">Szukaj</Label>
+          <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
+        </div>
+        <div className={fieldWrap}>
+          <Label htmlFor="stage">Etap</Label>
+          <NativeSelect id="stage" name="stage" defaultValue={filters.stage}>
+            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
             {STAGES.map((s) => (
-              <option key={s.value} value={s.value}>
+              <NativeSelectOption key={s.value} value={s.value}>
                 {s.label}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
-        </label>
-        <label className={label}>
-          <span>Kierunek</span>
-          <select name="direction" defaultValue={filters.direction} className={field}>
-            <option value="">Wszystkie</option>
+          </NativeSelect>
+        </div>
+        <div className={fieldWrap}>
+          <Label htmlFor="direction">Kierunek</Label>
+          <NativeSelect id="direction" name="direction" defaultValue={filters.direction}>
+            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
             {DIRECTIONS.map((d) => (
-              <option key={d.value} value={d.value}>
+              <NativeSelectOption key={d.value} value={d.value}>
                 {d.label}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
-        </label>
-        <label className={label}>
-          <span>Tag</span>
-          <select name="tag" defaultValue={filters.tag} className={field}>
-            <option value="">Wszystkie</option>
+          </NativeSelect>
+        </div>
+        <div className={fieldWrap}>
+          <Label htmlFor="tag">Tag</Label>
+          <NativeSelect id="tag" name="tag" defaultValue={filters.tag}>
+            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
             {tags.map((t) => (
-              <option key={t} value={t}>
+              <NativeSelectOption key={t} value={t}>
                 {t}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
-        </label>
-        <label className={label}>
-          <span>Zarchiwizowane</span>
-          <select name="archived" defaultValue={filters.archived} className={field}>
-            <option value="active">Ukryte</option>
-            <option value="only">Tylko zarchiwizowane</option>
-            <option value="all">Wszystkie</option>
-          </select>
-        </label>
-        <label className="flex flex-row items-center gap-1.5 pb-2 text-xs text-muted">
-          <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} />
-          <span>Open to work</span>
-        </label>
-        <div className="flex items-center gap-3 pb-0.5">
-          <button type="submit" className="cursor-pointer rounded-md bg-foreground px-4 py-2 text-sm text-background">
-            Filtruj
-          </button>
+          </NativeSelect>
+        </div>
+        <div className={fieldWrap}>
+          <Label htmlFor="archived">Zarchiwizowane</Label>
+          <NativeSelect id="archived" name="archived" defaultValue={filters.archived}>
+            <NativeSelectOption value="active">Ukryte</NativeSelectOption>
+            <NativeSelectOption value="only">Tylko zarchiwizowane</NativeSelectOption>
+            <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
+          </NativeSelect>
+        </div>
+        <Label className="h-8 gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} className="size-4 accent-primary" />
+          Open to work
+        </Label>
+        <div className="flex items-center gap-2">
+          <Button type="submit">Filtruj</Button>
           {hasFilters && (
-            <Link href="/contacts" className="text-sm text-muted">
-              Wyczyść
-            </Link>
+            <Button asChild variant="ghost">
+              <Link href="/contacts">Wyczyść</Link>
+            </Button>
           )}
         </div>
       </form>
 
-      <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className={th}>Osoba</th>
-              <th className={th}>Etap</th>
-              <th className={th}>Kierunek</th>
-              <th className={th}>Tagi</th>
-              <th className={th}>Ostatnia aktywność</th>
-            </tr>
-          </thead>
-          <tbody className="[&>tr:last-child>td]:border-b-0">
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Osoba</TableHead>
+              <TableHead>Etap</TableHead>
+              <TableHead>Kierunek</TableHead>
+              <TableHead>Tagi</TableHead>
+              <TableHead>Ostatnia aktywność</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {contacts.map((c) => (
-              <tr key={c.id} className={c.archived ? "opacity-60" : undefined}>
-                <td className={td}>
+              <TableRow key={c.id} className={c.archived ? "opacity-60" : undefined}>
+                <TableCell className="whitespace-normal">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Link href={`/contacts/${c.id}`} className="hover:underline">
-                      <strong>{c.name}</strong>
+                    <Link href={`/contacts/${c.id}`} className="font-semibold hover:underline">
+                      {c.name}
                     </Link>
-                    {c.openToWork && <span className={`${pill} bg-foreground text-background`}>OTW</span>}
-                    {c.archived && <span className={`${pill} border border-line bg-soft`}>zarchiwizowany</span>}
+                    {c.openToWork && <Badge>OTW</Badge>}
+                    {c.archived && <Badge variant="outline">zarchiwizowany</Badge>}
                   </div>
-                  {c.occupation && <div className="mt-0.5 text-xs text-muted">{c.occupation}</div>}
-                  <div className="mt-0.5 text-xs text-muted">
+                  {c.occupation && <div className="mt-0.5 text-xs text-muted-foreground">{c.occupation}</div>}
+                  <div className="mt-0.5 text-xs text-muted-foreground">
                     {c.location && <span>{c.location} · </span>}
                     <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
                       LinkedIn ↗
                     </a>
                   </div>
-                </td>
-                <td className={td}>{STAGE_LABEL[c.stage]}</td>
-                <td className={td}>{DIRECTION_LABEL[c.direction]}</td>
-                <td className={td}>
+                </TableCell>
+                <TableCell>{STAGE_LABEL[c.stage]}</TableCell>
+                <TableCell>{DIRECTION_LABEL[c.direction]}</TableCell>
+                <TableCell className="whitespace-normal">
                   <div className="flex max-w-72 flex-wrap gap-1">
                     {c.tags.slice(0, 3).map((t) => (
-                      <span key={t} className={`${pill} border border-line bg-soft`}>
+                      <Badge key={t} variant="secondary">
                         {t}
-                      </span>
+                      </Badge>
                     ))}
-                    {c.tags.length > 3 && (
-                      <span className={`${pill} border border-line bg-soft text-muted`}>+{c.tags.length - 3}</span>
-                    )}
+                    {c.tags.length > 3 && <Badge variant="outline">+{c.tags.length - 3}</Badge>}
                   </div>
-                </td>
-                <td className={`${td} whitespace-nowrap`}>
-                  {c.lastActivity ? dateFormat.format(c.lastActivity) : "—"}
-                </td>
-              </tr>
+                </TableCell>
+                <TableCell>{c.lastActivity ? dateFormat.format(c.lastActivity) : "—"}</TableCell>
+              </TableRow>
             ))}
             {contacts.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted">
+              <TableRow>
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Żaden kontakt nie pasuje do filtrów.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {pages > 1 && (
