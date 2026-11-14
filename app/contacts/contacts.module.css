@@ -1,0 +1,221 @@
+.main {
+  --line: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --muted: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --soft: color-mix(in srgb, var(--foreground) 6%, transparent);
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+}
+
+.count {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.filters input[type="search"],
+.filters select {
+  min-width: 150px;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.search {
+  flex: 1 1 260px;
+}
+
+.search input {
+  width: 100%;
+}
+
+.check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+  padding-bottom: 8px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 2px;
+}
+
+.actions button {
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--background);
+  background: var(--foreground);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reset {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: var(--soft);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sub {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.sub a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.badge,
+.badgeMuted,
+.tag,
+.tagMore {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.badgeMuted,
+.tag,
+.tagMore {
+  background: var(--soft);
+  border: 1px solid var(--line);
+}
+
+.tagMore {
+  color: var(--muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 280px;
+}
+
+.date {
+  white-space: nowrap;
+}
+
+.archived {
+  opacity: 0.6;
+}
+
+.empty {
+  padding: 32px 12px !important;
+  text-align: center !important;
+  color: var(--muted);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 0.9rem;
+}
+
+.pager a {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .filters input[type="search"],
+  .filters select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .filters label {
+    flex: 1 1 140px;
+  }
+}
