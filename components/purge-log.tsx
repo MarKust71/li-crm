@@ -54,7 +54,7 @@ function Confirm({ action, scope, before, label, title, description, disabled }:
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={disabled} className="cursor-pointer disabled:cursor-not-allowed">
+        <Button type="button" variant="outline" size="sm" disabled={disabled}>
           {label}
         </Button>
       </AlertDialogTrigger>
