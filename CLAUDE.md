@@ -47,6 +47,10 @@ Schemat bazy: `prisma/schema.prisma`.
   odwołany = usunięcie wydarzenia) wynika z historii kontaktu (`meetingOutcome`). `FOLLOW_UP` wymaga terminu i odbytego BOM
   (`BOM_COMPLETED`) i nie zmienia etapu. Usunięcie takiego zdarzenia zostawia `CalendarTombstone`, żeby n8n skasował wydarzenie.
 
+- Dziennik aktywności (`/log`, tabela `ActivityLog`): każda zmiana danych, przebieg synchronizacji, powiadomienie i logowanie zostawia wpis
+  przez `logActivity` (`lib/activity-log.ts`), wołany z warstwy domenowej, a nie z UI (żeby zmiany z synchronizacji też się logowały).
+  Nowe mutacje dopisuj tak samo. Nigdy nie loguj haseł, kluczy, treści wiadomości ani e-maili/telefonów. Retencja 180 dni (automatycznie, raz na dobę).
+
 ## Środowiska
 
 - Dev: Postgres w lokalnym Dockerze (`docker compose up -d db`).

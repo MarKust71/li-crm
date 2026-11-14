@@ -312,3 +312,35 @@ model SentNotification {
 
   @@index([sentAt])
 }
+
+// ───────────────────── Dziennik aktywności (/log) ─────────────────────
+// Jeden wspólny log: zmiany użytkownika, synchronizacja, powiadomienia, logowania. Wpisy starsze niż 180 dni usuwa się
+// automatycznie (raz na dobę), poza tym ręcznie na stronie /log. contactId bez klucza obcego: wpis przeżywa usunięcie kontaktu.
+enum ActivitySource {
+  UI
+  SYNC
+  NOTIFY
+  AUTH
+  SYSTEM
+}
+
+enum ActivityLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+model ActivityLog {
+  id        String        @id @default(cuid())
+  at        DateTime      @default(now())
+  source    ActivitySource
+  level     ActivityLevel @default(INFO)
+  action    String        // kod, np. contact.otw_changed
+  contactId String?
+  summary   String
+  details   Json?
+
+  @@index([at])
+  @@index([source, at])
+  @@index([contactId, at])
+}

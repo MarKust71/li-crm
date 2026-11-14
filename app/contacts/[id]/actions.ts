@@ -4,7 +4,7 @@ import type { ArchiveReason, EventType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
-import { addContactEvent, deleteContactEvent, setArchived, updateContactDetails } from "@/lib/contact-events";
+import { addContactEvent, deleteContactEvent, setArchived, setOpenToWork, updateContactDetails } from "@/lib/contact-events";
 import { prisma } from "@/lib/prisma";
 import { ALL_EVENT_TYPES, ARCHIVE_REASONS } from "@/lib/labels";
 import { parseDateInput, parseDateTimeInput } from "@/lib/dates";
@@ -85,7 +85,7 @@ export async function unarchiveAction(formData: FormData) {
 export async function toggleOpenToWorkAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
-  await prisma.contact.update({ where: { id }, data: { openToWork: formData.get("value") === "1" } });
+  await setOpenToWork(id, formData.get("value") === "1");
   done(id);
 }
 

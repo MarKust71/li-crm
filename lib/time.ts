@@ -1,3 +1,4 @@
+import { logActivity } from "./activity-log";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
@@ -58,7 +59,8 @@ export function isLongRunning(startedAt: Date, hours = 12): boolean {
 /** Najwyżej jedna trwająca sesja: pilnuje tego częściowy indeks unikalny w bazie (migracja time_entry_single_running). */
 export async function startSession(activityId: string | null): Promise<TimeResult> {
   try {
-    await prisma.timeEntry.create({ data: { startedAt: new Date(), activityTypeId: activityId } });
+    const e = await prisma.timeEntry.create({ data: { startedAt: new Date(), activityTypeId: activityId } });
+    await logActivity({ source: "UI", action: "time.started", summary: "Rozpoczęto sesję czasu pracy", details: { entryId: e.id } });
     return { ok: true };
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, error: "running" };
@@ -84,6 +86,10 @@ export async function stopSession(id: string, input: Partial<Pick<EntryInput, "s
     where: { id, endedAt: null },
     data: { startedAt, endedAt: input.endedAt, activityTypeId: input.activityId, count: input.count, note: input.note },
   });
+  if (res.count === 1) {
+    const mins = Math.round((input.endedAt.getTime() - startedAt.getTime()) / 60_000);
+    await logActivity({ source: "UI", action: "time.stopped", summary: `Zakończono sesję czasu pracy (${mins} min)`, details: { entryId: id, minutes: mins } });
+  }
   return res.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
@@ -105,11 +111,13 @@ export async function updateEntry(
     where: { id, endedAt: { not: null } },
     data: { startedAt, endedAt, activityTypeId: input.activityId, count: input.count, note: input.note },
   });
+  if (res.count === 1) await logActivity({ source: "UI", action: "time.updated", summary: "Zmieniono wpis czasu pracy", details: { entryId: id } });
   return res.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 
 export async function deleteEntry(id: string): Promise<TimeResult> {
   const res = await prisma.timeEntry.deleteMany({ where: { id } });
+  if (res.count === 1) await logActivity({ source: "UI", action: "time.deleted", summary: "Usunięto wpis czasu pracy", details: { entryId: id } });
   return res.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
 }
 

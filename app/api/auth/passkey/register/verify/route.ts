@@ -1,6 +1,7 @@
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { hasAccess } from "@/lib/access";
+import { logActivity } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 import { MAX_PASSKEYS, consumeChallenge, getRelyingParty, isSameOriginJson } from "@/lib/auth/webauthn";
 
@@ -53,5 +54,6 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "already_registered" }, { status: 409 }); // ten sam klucz dwa razy (unikalny credentialId)
   }
+  await logActivity({ source: "AUTH", action: "auth.passkey_added", summary: `Dodano klucz dostępu: ${name}` });
   return Response.json({ ok: true });
 }
