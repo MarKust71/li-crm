@@ -14,7 +14,8 @@ export async function claimRun(now = new Date()) {
   const s = await getSyncSettings();
   const gate = evaluateGate({ intervalMinutes: s.intervalMinutes, lastRunAt: s.lastRunAt, manualRequestedAt: s.manualRequestedAt, now });
   if (gate.run) await setSetting(KEYS.lastRunAt, now.toISOString());
-  return gate;
+  // kursor i kalendarz potrzebne workflow do pobrania zmian z kalendarza (updatedMin)
+  return { ...gate, pullCursor: s.pullCursor?.toISOString() ?? null, calendarId: CALENDAR_ID };
 }
 
 export type PendingOp = SyncOp & { version: string };
