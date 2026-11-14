@@ -10,10 +10,11 @@ Schemat bazy: `prisma/schema.prisma`.
 ## Stack
 
 - Next.js (App Router, TypeScript) na Vercel, funkcje w regionie `fra1`
-- PostgreSQL na własnym serwerze (Docker), dostęp przez Prisma
+- PostgreSQL: dev w lokalnym Dockerze, produkcja w Prisma Postgres (`db.prisma.io`), dostęp przez Prisma
 - Logowanie: własna implementacja dla jednego użytkownika (bez Auth.js): hasło (scrypt) i sesja w podpisanym
-  ciasteczku (JWT, `jose`), bramka w `proxy.ts`, w kolejnym etapie klucz dostępu/Touch ID (`@simplewebauthn`)
-- n8n (`n8n.dmb24.pl`) przyjmuje webhook z rozszerzenia i zapisuje do bazy
+  ciasteczku (JWT, `jose`), bramka w `proxy.ts`, klucze dostępu/Touch ID (`@simplewebauthn`)
+- n8n (`n8n.dmb24.pl`): webhook z rozszerzenia (dziś zapis do arkusza, przepięcie na bazę otwarte), synchronizacja
+  z Kalendarzem Google i powiadomienia Telegram (workflowy odpytują aplikację przez `/api/sync/*` i `/api/notify/*`)
 
 ## Zasady
 
@@ -49,9 +50,9 @@ Schemat bazy: `prisma/schema.prisma`.
 ## Środowiska
 
 - Dev: Postgres w lokalnym Dockerze (`docker compose up -d db`).
-- Prod: istniejący kontener Postgresa na hoście n8n, osobna baza `li_crm`
-  i osobny użytkownik, połączenie z Vercela przez `dirwro.ddns.net:54320`
-  z wymuszonym SSL (`sslmode=require`) i niskim `connection_limit`.
+- Prod: Prisma Postgres (`db.prisma.io`), połączenie z Vercela przez SSL; klucze w zmiennych środowiskowych Vercela.
+  Migracje na produkcji stosuje się ręcznie (`prisma migrate deploy`) **przed** wdrożeniem kodu, który z nich korzysta
+  (build na Vercelu ich nie uruchamia).
 
 ## Zmienne środowiskowe
 
