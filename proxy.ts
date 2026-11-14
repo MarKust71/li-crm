@@ -1,20 +1,41 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { checkBasicAuth } from "@/lib/basic-auth";
+import { authMode, getAuthConfig } from "@/lib/auth/config";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
-// Tymczasowa bramka dostępu (patrz lib/basic-auth.ts) do czasu wdrożenia Auth.js.
-export function proxy(request: NextRequest) {
-  const access = checkBasicAuth(request.headers.get("authorization"));
-  if (access === "ok") return NextResponse.next();
-  if (access === "unconfigured") {
-    return new NextResponse("Dostęp zablokowany: brak konfiguracji BASIC_AUTH_USER / BASIC_AUTH_PASSWORD.", {
-      status: 503,
-    });
+// Bramka logowania dla całej aplikacji (Next.js 16: proxy.ts zastępuje middleware).
+// Uwaga z dokumentacji Next.js: proxy nie jest pełną autoryzacją, dlatego każda Server Action
+// dodatkowo sprawdza sesję sama (lib/access.ts → requireAccess).
+export async function proxy(request: NextRequest) {
+  const mode = authMode();
+  if (mode === "misconfigured") {
+    return new NextResponse("Dostęp zablokowany: brak konfiguracji logowania (AUTH_SECRET, AUTH_PASSWORD_HASH).", { status: 503 });
   }
-  return new NextResponse("Wymagane logowanie.", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="li-crm", charset="UTF-8"' },
-  });
+  if (mode === "open") return NextResponse.next();
+
+  const config = getAuthConfig()!;
+  const { pathname, search } = request.nextUrl;
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const authed = token ? await verifySessionToken(token, config.secret) : false;
+
+  // endpointy logowania kluczem dostępu (kolejny etap) są publiczne: same weryfikują podpis
+  if (pathname.startsWith("/api/auth/")) return NextResponse.next();
+
+  if (pathname === "/login") {
+    // zalogowany użytkownik nie potrzebuje formularza
+    if (authed && request.method === "GET") return NextResponse.redirect(new URL("/contacts", request.url));
+    return NextResponse.next();
+  }
+
+  if (authed) return NextResponse.next();
+
+  if (request.method === "GET" || request.method === "HEAD") {
+    const url = new URL("/login", request.url);
+    const next = `${pathname}${search}`;
+    if (next.length <= 500 && next !== "/") url.searchParams.set("next", next);
+    return NextResponse.redirect(url);
+  }
+  return new NextResponse("Wymagane logowanie.", { status: 401 });
 }
 
 export const config = {

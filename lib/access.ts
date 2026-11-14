@@ -1,8 +1,18 @@
-import { headers } from "next/headers";
-import { checkBasicAuth } from "./basic-auth";
+import { cookies } from "next/headers";
+import { authMode, getAuthConfig } from "./auth/config";
+import { SESSION_COOKIE, verifySessionToken } from "./auth/session";
 
-/** Druga linia obrony: każda Server Action sprawdza dostęp sama (Server Actions są wywoływalne przez POST). */
+/** Czy bieżące żądanie ma ważną sesję (w trybie "open" poza produkcją: zawsze tak). */
+export async function hasAccess(): Promise<boolean> {
+  const mode = authMode();
+  if (mode === "open") return true;
+  const config = getAuthConfig();
+  if (mode !== "enforce" || !config) return false;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? verifySessionToken(token, config.secret) : false;
+}
+
+/** Druga linia obrony: każda Server Action sprawdza sesję sama (Server Actions są wywoływalne przez POST, z pominięciem UI). */
 export async function requireAccess(): Promise<void> {
-  const h = await headers();
-  if (checkBasicAuth(h.get("authorization")) !== "ok") throw new Error("Brak dostępu");
+  if (!(await hasAccess())) throw new Error("Brak dostępu");
 }

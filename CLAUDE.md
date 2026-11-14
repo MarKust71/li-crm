@@ -11,7 +11,8 @@ Schemat bazy: `prisma/schema.prisma`.
 
 - Next.js (App Router, TypeScript) na Vercel, funkcje w regionie `fra1`
 - PostgreSQL na własnym serwerze (Docker), dostęp przez Prisma
-- Logowanie: Auth.js, jeden użytkownik
+- Logowanie: własna implementacja dla jednego użytkownika (bez Auth.js): hasło (scrypt) i sesja w podpisanym
+  ciasteczku (JWT, `jose`), bramka w `proxy.ts`, w kolejnym etapie klucz dostępu/Touch ID (`@simplewebauthn`)
 - n8n (`n8n.dmb24.pl`) przyjmuje webhook z rozszerzenia i zapisuje do bazy
 
 ## Zasady
@@ -27,6 +28,8 @@ Schemat bazy: `prisma/schema.prisma`.
 - Wartości liczone (Delay, statystyki, średnie czasu) liczymy w zapytaniach,
   nie przechowujemy.
 - Sekrety tylko w zmiennych środowiskowych. Nigdy w repozytorium.
+- Każda Server Action zaczyna się od `await requireAccess()` (`lib/access.ts`): proxy nie jest pełną autoryzacją.
+  Unieważnienie wszystkich sesji = zmiana `AUTH_SECRET`.
 - UI i komunikaty po polsku, identyfikatory w kodzie po angielsku.
 - Arkusze Google są tylko źródłem importu. Nie zapisujemy do nich.
 
@@ -40,5 +43,6 @@ Schemat bazy: `prisma/schema.prisma`.
 ## Zmienne środowiskowe
 
 - `DATABASE_URL`, `DIRECT_URL`
-- `AUTH_SECRET`, dane logowania jedynego użytkownika
+- `AUTH_SECRET` (klucz podpisu sesji, min. 32 znaki) i `AUTH_PASSWORD_HASH` (skrót hasła z `npm run hash-password`).
+  W produkcji bez nich aplikacja nic nie serwuje (503); lokalnie bez nich logowanie jest wyłączone
 - `INGEST_API_KEY` – klucz dla endpointu przyjmującego dane z n8n/rozszerzenia
