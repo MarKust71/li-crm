@@ -1,21 +1,31 @@
 import type { Metadata } from "next";
+import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-import { PAGE_SIZE, listContacts, listTagNames, parseFilters, type ContactFilters } from "@/lib/contacts";
+import {
+  PAGE_SIZE,
+  listContacts,
+  listTagNames,
+  parseFilters,
+  type ContactFilters,
+  type SortKey,
+} from "@/lib/contacts";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DIRECTIONS, DIRECTION_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kontakty · li-crm" };
 
 const dateFormat = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeZone: "Europe/Warsaw" });
 
-// Wspólne style (do czasu przejścia na komponenty shadcn).
-const label = "flex flex-col gap-1 text-xs text-muted max-sm:flex-1 max-sm:basis-36";
-const field =
-  "min-w-36 rounded-md border border-line bg-background px-2 py-1.5 text-sm text-foreground max-sm:w-full max-sm:min-w-0";
-const pill = "inline-block whitespace-nowrap rounded-full px-2 py-px text-xs";
-const th =
-  "whitespace-nowrap border-b border-line bg-soft px-3 py-2.5 text-left align-top text-xs font-semibold uppercase tracking-wide text-muted";
-const td = "border-b border-line px-3 py-2.5 align-top";
+// Pole filtra: etykieta nad kontrolką; na wąskim ekranie pola zajmują pełną szerokość.
+// Nagłówek tabeli przyklejony do górnej krawędzi obszaru listy (cień zamiast ramki, bo ramki znikają przy sticky).
+const stickyHead = "sticky top-0 z-10 bg-muted shadow-[inset_0_-1px_0_var(--border)]";
+const fieldWrap = "flex min-w-36 flex-col gap-1 text-xs text-muted-foreground max-sm:flex-1 max-sm:basis-36";
 
 function pageHref(f: ContactFilters, page: number): string {
   const p = new URLSearchParams();
@@ -25,9 +35,29 @@ function pageHref(f: ContactFilters, page: number): string {
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
   if (f.archived !== "active") p.set("archived", f.archived);
+  if (f.sort) {
+    p.set("sort", f.sort);
+    p.set("dir", f.dir || "asc");
+  }
   if (page > 1) p.set("page", String(page));
   const qs = p.toString();
   return qs ? `/contacts?${qs}` : "/contacts";
+}
+
+// Kolumny sortowalne. "Tagi" sortuje po liczbie tagów, "Ostatnia aktywność" po dacie najnowszego zdarzenia.
+const COLUMNS: { label: string; key: SortKey; hint?: string }[] = [
+  { label: "Osoba", key: "name" },
+  { label: "Etap", key: "stage" },
+  { label: "Kierunek", key: "direction" },
+  { label: "Tagi", key: "tags", hint: "wg liczby tagów" },
+  { label: "Ostatnia aktywność", key: "activity" },
+];
+
+/** Kliknięcie: rosnąco → malejąco → bez sortowania (kolejność dodania) → rosnąco… Zmiana sortowania wraca na stronę 1. */
+function sortHref(f: ContactFilters, key: SortKey): string {
+  if (f.sort !== key) return pageHref({ ...f, sort: key, dir: "asc" }, 1);
+  if (f.dir === "asc") return pageHref({ ...f, sort: key, dir: "desc" }, 1);
+  return pageHref({ ...f, sort: "", dir: "" }, 1);
 }
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -35,11 +65,11 @@ type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 // Dane zależą od żądania (searchParams, baza), więc muszą być w <Suspense> (cacheComponents).
 export default function ContactsPage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6">
-      <header className="mb-4">
+    <main className="mx-auto flex h-dvh w-full max-w-6xl flex-col gap-3 px-4 pb-3 pt-4">
+      <header className="shrink-0">
         <h1 className="text-2xl font-semibold">Kontakty</h1>
       </header>
-      <Suspense fallback={<p className="mb-3 text-sm text-muted">Ładuję kontakty…</p>}>
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakty…</p>}>
         <ContactsContent searchParams={searchParams} />
       </Suspense>
     </main>
@@ -55,142 +85,181 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
     filters.q || filters.stage || filters.direction || filters.tag || filters.otw || filters.archived !== "active",
   );
 
+  const active: string[] = [];
+  if (filters.q) active.push(`Szukaj: ${filters.q}`);
+  if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
+  if (filters.direction) active.push(`Kierunek: ${DIRECTION_LABEL[filters.direction]}`);
+  if (filters.tag) active.push(`Tag: ${filters.tag}`);
+  if (filters.otw) active.push("Open to work");
+  if (filters.archived === "only") active.push("Tylko zarchiwizowane");
+  if (filters.archived === "all") active.push("Z zarchiwizowanymi");
+
   return (
     <>
-      <p className="mb-3 text-sm text-muted">
+      <p className="shrink-0 text-sm text-muted-foreground">
         {total === 0 ? "Brak wyników" : `${from}–${to} z ${total.toLocaleString("pl-PL")}`}
+        {" · "}
+        {filters.sort
+          ? `sortowanie: ${COLUMNS.find((c) => c.key === filters.sort)?.label} ${filters.dir === "desc" ? "malejąco" : "rosnąco"}`
+          : "kolejność dodania"}
       </p>
 
-      <form className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line p-3" method="get" action="/contacts">
-        <label className={`${label} flex-1 basis-64`}>
-          <span>Szukaj</span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.q}
-            placeholder="Imię, nazwisko lub adres profilu"
-            className={`${field} w-full`}
-          />
-        </label>
-        <label className={label}>
-          <span>Etap</span>
-          <select name="stage" defaultValue={filters.stage} className={field}>
-            <option value="">Wszystkie</option>
-            {STAGES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
+      <details className="group shrink-0 rounded-lg border" open={hasFilters}>
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+          Filtry
+          <span className="flex flex-wrap gap-1 font-normal">
+            {active.map((a) => (
+              <Badge key={a} variant="secondary" className="max-w-56 truncate">
+                {a}
+              </Badge>
             ))}
-          </select>
-        </label>
-        <label className={label}>
-          <span>Kierunek</span>
-          <select name="direction" defaultValue={filters.direction} className={field}>
-            <option value="">Wszystkie</option>
-            {DIRECTIONS.map((d) => (
-              <option key={d.value} value={d.value}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={label}>
-          <span>Tag</span>
-          <select name="tag" defaultValue={filters.tag} className={field}>
-            <option value="">Wszystkie</option>
-            {tags.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={label}>
-          <span>Zarchiwizowane</span>
-          <select name="archived" defaultValue={filters.archived} className={field}>
-            <option value="active">Ukryte</option>
-            <option value="only">Tylko zarchiwizowane</option>
-            <option value="all">Wszystkie</option>
-          </select>
-        </label>
-        <label className="flex flex-row items-center gap-1.5 pb-2 text-xs text-muted">
-          <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} />
-          <span>Open to work</span>
-        </label>
-        <div className="flex items-center gap-3 pb-0.5">
-          <button type="submit" className="cursor-pointer rounded-md bg-foreground px-4 py-2 text-sm text-background">
-            Filtruj
-          </button>
-          {hasFilters && (
-            <Link href="/contacts" className="text-sm text-muted">
-              Wyczyść
-            </Link>
+          </span>
+        </summary>
+        <form className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3" method="get" action="/contacts">
+          {filters.sort && (
+            <>
+              <input type="hidden" name="sort" value={filters.sort} />
+              <input type="hidden" name="dir" value={filters.dir || "asc"} />
+            </>
           )}
-        </div>
-      </form>
+          <div className={`${fieldWrap} flex-1 basis-64`}>
+            <Label htmlFor="q">Szukaj</Label>
+            <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="stage">Etap</Label>
+            <NativeSelect id="stage" name="stage" defaultValue={filters.stage}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {STAGES.map((s) => (
+                <NativeSelectOption key={s.value} value={s.value}>
+                  {s.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="direction">Kierunek</Label>
+            <NativeSelect id="direction" name="direction" defaultValue={filters.direction}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {DIRECTIONS.map((d) => (
+                <NativeSelectOption key={d.value} value={d.value}>
+                  {d.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="tag">Tag</Label>
+            <NativeSelect id="tag" name="tag" defaultValue={filters.tag}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {tags.map((t) => (
+                <NativeSelectOption key={t} value={t}>
+                  {t}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="archived">Zarchiwizowane</Label>
+            <NativeSelect id="archived" name="archived" defaultValue={filters.archived}>
+              <NativeSelectOption value="active">Ukryte</NativeSelectOption>
+              <NativeSelectOption value="only">Tylko zarchiwizowane</NativeSelectOption>
+              <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
+            </NativeSelect>
+          </div>
+          <Label className="h-8 gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} className="size-4 accent-primary" />
+            Open to work
+          </Label>
+          <div className="flex items-center gap-2">
+            <Button type="submit">Filtruj</Button>
+            {hasFilters && (
+              <Button asChild variant="ghost">
+                <Link href={pageHref({ ...filters, q: "", stage: "", direction: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
+              </Button>
+            )}
+          </div>
+        </form>
+      </details>
 
-      <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className={th}>Osoba</th>
-              <th className={th}>Etap</th>
-              <th className={th}>Kierunek</th>
-              <th className={th}>Tagi</th>
-              <th className={th}>Ostatnia aktywność</th>
-            </tr>
-          </thead>
-          <tbody className="[&>tr:last-child>td]:border-b-0">
-            {contacts.map((c) => (
-              <tr key={c.id} className={c.archived ? "opacity-60" : undefined}>
-                <td className={td}>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Link href={`/contacts/${c.id}`} className="hover:underline">
-                      <strong>{c.name}</strong>
+      {/* Lista przewija się we własnym obszarze, więc filtry i stronicowanie są zawsze widoczne,
+          a nagłówek tabeli przykleja się do góry tego obszaru. */}
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+        <Table containerClassName="overflow-visible">
+          <TableHeader>
+            <TableRow>
+              {COLUMNS.map((c) => {
+                const active = filters.sort === c.key;
+                const asc = active && filters.dir === "asc";
+                const Icon = !active ? ChevronsUpDown : asc ? ArrowUp : ArrowDown;
+                const next = !active ? "rosnąco" : asc ? "malejąco" : "kolejność dodania";
+                return (
+                  <TableHead
+                    key={c.key}
+                    className={stickyHead}
+                    aria-sort={!active ? "none" : asc ? "ascending" : "descending"}
+                  >
+                    <Link
+                      href={sortHref(filters, c.key)}
+                      title={`Sortuj: ${next}${c.hint ? ` (${c.hint})` : ""}`}
+                      className={`inline-flex items-center gap-1 ${active ? "text-foreground" : "hover:text-foreground"}`}
+                    >
+                      {c.label}
+                      <Icon className={`size-3.5 ${active ? "" : "opacity-40"}`} aria-hidden />
                     </Link>
-                    {c.openToWork && <span className={`${pill} bg-foreground text-background`}>OTW</span>}
-                    {c.archived && <span className={`${pill} border border-line bg-soft`}>zarchiwizowany</span>}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {contacts.map((c) => (
+              <TableRow key={c.id} className={c.archived ? "opacity-60" : undefined}>
+                <TableCell className="whitespace-normal">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Link href={`/contacts/${c.id}`} className="font-semibold hover:underline">
+                      {c.name}
+                    </Link>
+                    {c.openToWork && <Badge>OTW</Badge>}
+                    {c.archived && <Badge variant="outline">zarchiwizowany</Badge>}
                   </div>
-                  {c.occupation && <div className="mt-0.5 text-xs text-muted">{c.occupation}</div>}
-                  <div className="mt-0.5 text-xs text-muted">
+                  {c.occupation && <div className="mt-0.5 text-xs text-muted-foreground">{c.occupation}</div>}
+                  <div className="mt-0.5 text-xs text-muted-foreground">
                     {c.location && <span>{c.location} · </span>}
                     <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
                       LinkedIn ↗
                     </a>
                   </div>
-                </td>
-                <td className={td}>{STAGE_LABEL[c.stage]}</td>
-                <td className={td}>{DIRECTION_LABEL[c.direction]}</td>
-                <td className={td}>
+                </TableCell>
+                <TableCell>{STAGE_LABEL[c.stage]}</TableCell>
+                <TableCell>{DIRECTION_LABEL[c.direction]}</TableCell>
+                <TableCell className="whitespace-normal">
                   <div className="flex max-w-72 flex-wrap gap-1">
                     {c.tags.slice(0, 3).map((t) => (
-                      <span key={t} className={`${pill} border border-line bg-soft`}>
+                      <Badge key={t} variant="secondary">
                         {t}
-                      </span>
+                      </Badge>
                     ))}
-                    {c.tags.length > 3 && (
-                      <span className={`${pill} border border-line bg-soft text-muted`}>+{c.tags.length - 3}</span>
-                    )}
+                    {c.tags.length > 3 && <Badge variant="outline">+{c.tags.length - 3}</Badge>}
                   </div>
-                </td>
-                <td className={`${td} whitespace-nowrap`}>
-                  {c.lastActivity ? dateFormat.format(c.lastActivity) : "—"}
-                </td>
-              </tr>
+                </TableCell>
+                <TableCell>{c.lastActivity ? dateFormat.format(c.lastActivity) : "—"}</TableCell>
+              </TableRow>
             ))}
             {contacts.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted">
+              <TableRow>
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Żaden kontakt nie pasuje do filtrów.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {pages > 1 && (
-        <nav className="mt-4 flex items-center justify-between gap-3 text-sm" aria-label="Strony">
+        <nav className="flex shrink-0 items-center justify-between gap-3 text-sm" aria-label="Strony">
           {page > 1 ? (
             <Link href={pageHref(filters, page - 1)} className="underline">
               ← Poprzednia
