@@ -232,3 +232,27 @@ model LoginAttempt {
   @@index([ip, createdAt])
   @@index([createdAt])
 }
+
+// Klucze dostępu (passkeys / Touch ID, WebAuthn). Klucz prywatny nigdy nie opuszcza urządzenia: tu jest tylko publiczny.
+model Passkey {
+  id           String    @id @default(cuid())
+  credentialId String    @unique // base64url
+  publicKey    Bytes
+  counter      BigInt    @default(0) // licznik podpisów (uint32; Apple zwykle zostawia 0)
+  transports   String[]
+  deviceType   String    // "singleDevice" | "multiDevice" (synchronizowany, np. iCloud Keychain)
+  backedUp     Boolean
+  name         String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+}
+
+// Jednorazowe wyzwania WebAuthn: zużywane przy weryfikacji (replay tej samej odpowiedzi jest odrzucany), ważne 5 minut.
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  challenge String
+  purpose   String   // "register" | "login"
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

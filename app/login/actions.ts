@@ -3,17 +3,12 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthConfig } from "@/lib/auth/config";
+import { safeNext } from "@/lib/auth/redirect";
 import { MAX_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/auth/session";
 import { isLocked, recordAttempt } from "@/lib/auth/throttle";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Adres powrotu tylko względny i wewnętrzny (blokuje "//host", "https://…" i pętlę na /login). */
-function safeNext(v: FormDataEntryValue | null): string {
-  const s = typeof v === "string" ? v : "";
-  return /^\/(?!\/)[A-Za-z0-9\-._~%/?=&]{0,500}$/.test(s) && !s.startsWith("/login") && !s.startsWith("/api/") ? s : "/contacts";
-}
 
 async function clientIp(): Promise<string> {
   const h = await headers();

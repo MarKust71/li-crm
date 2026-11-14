@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasskeyLoginButton } from "@/components/passkey-buttons";
+import { passkeysConfigured } from "@/lib/auth/webauthn";
+import { prisma } from "@/lib/prisma";
 import { loginAction } from "./actions";
 
 export const metadata: Metadata = { title: "Logowanie · li-crm" };
@@ -43,7 +46,23 @@ async function LoginForm({ searchParams }: { searchParams: SearchParams }) {
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
   const error = ERRORS[one(sp.error)];
   const next = one(sp.next);
+  // przycisk Touch ID tylko, gdy domena jest skonfigurowana i jest co najmniej jeden klucz
+  const showPasskey = passkeysConfigured() && (await prisma.passkey.count()) > 0;
 
+  return (
+    <div className="flex flex-col gap-4">
+      {showPasskey && (
+        <>
+          <PasskeyLoginButton next={next} />
+          <p className="text-center text-xs text-muted-foreground">albo hasłem</p>
+        </>
+      )}
+      <PasswordForm error={error} next={next} />
+    </div>
+  );
+}
+
+function PasswordForm({ error, next }: { error: string | undefined; next: string }) {
   return (
     <form action={loginAction} className="flex flex-col gap-3">
       {error && (

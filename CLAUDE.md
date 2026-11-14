@@ -45,4 +45,6 @@ Schemat bazy: `prisma/schema.prisma`.
 - `DATABASE_URL`, `DIRECT_URL`
 - `AUTH_SECRET` (klucz podpisu sesji, min. 32 znaki) i `AUTH_PASSWORD_HASH` (skrót hasła z `npm run hash-password`).
   W produkcji bez nich aplikacja nic nie serwuje (503); lokalnie bez nich logowanie jest wyłączone
+- `AUTH_RP_ID` i `AUTH_ORIGIN` (np. `li-crm.mydmb.pl` i `https://li-crm.mydmb.pl`): domena kluczy dostępu (Touch ID).
+  Klucz jest przypięty do domeny; zmiana domeny wymaga ponownej rejestracji kluczy (hasło działa zawsze)
 - `INGEST_API_KEY` – klucz dla endpointu przyjmującego dane z n8n/rozszerzenia
