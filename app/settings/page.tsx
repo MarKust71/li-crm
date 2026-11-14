@@ -9,15 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { syncStatus } from "@/lib/calendar-sync";
-import { MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, getNotifySettings } from "@/lib/settings";
+import { MAX_IDLE_MINUTES, MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, getNotifySettings, getTimeSettings } from "@/lib/settings";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { notifyTestAction, saveIntervalAction, saveNotifyAction, syncNowAction } from "./actions";
+import { notifyTestAction, saveIntervalAction, saveNotifyAction, saveTimeSettingsAction, syncNowAction } from "./actions";
 
 export const metadata: Metadata = { title: "Ustawienia · li-crm" };
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Warsaw" });
 
-export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string }> }) {
+export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string }> }) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -31,11 +31,12 @@ export default function SettingsPage({ searchParams }: { searchParams: Promise<{
   );
 }
 
-async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string }> }) {
+async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string }> }) {
   await connection();
   const sp = await searchParams;
   const { settings: s, counts } = await syncStatus();
   const n = await getNotifySettings();
+  const t = await getTimeSettings();
   const mode = s.intervalMinutes < 0 ? "off" : s.intervalMinutes === 0 ? "manual" : "interval";
   const waiting = s.manualRequestedAt && (!s.lastRunAt || s.manualRequestedAt > s.lastRunAt);
   const errors = counts.ERROR ?? 0;
@@ -124,6 +125,28 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
           </form>
         </CardContent>
       </Card>
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Czas pracy: podpowiedzi</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          Aplikacja zna tylko swoje zmiany (dziennik), więc tylko ich używa do podpowiedzi. Zatrzymanie sesji zawsze zatwierdzasz sam.
+        </p>
+        {sp.timeSaved && <Alert><AlertDescription>Zapisano ustawienia czasu pracy.</AlertDescription></Alert>}
+        {sp.error === "time" && <Alert variant="destructive"><AlertDescription>Niepoprawny próg: 0 (wyłączone) albo 15–{MAX_IDLE_MINUTES} minut.</AlertDescription></Alert>}
+        <form action={saveTimeSettingsAction} className="flex flex-col gap-3 rounded-lg border p-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="idleMinutes">Zaproponuj zakończenie sesji po tylu minutach bez zmian w aplikacji (0 = wyłączone)</Label>
+            <Input id="idleMinutes" name="idleMinutes" type="number" min={0} max={MAX_IDLE_MINUTES} defaultValue={t.idleMinutes} className="w-28" />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="suggestStart" defaultChecked={t.suggestStart} /> Podpowiadaj włączenie rejestrowania, gdy pracuję w aplikacji bez włączonego czasu
+          </label>
+          <div><Button type="submit">Zapisz</Button></div>
+        </form>
+      </CardContent>
+    </Card>
     </>
   );
 }

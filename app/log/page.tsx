@@ -121,7 +121,7 @@ async function LogContent({ searchParams }: { searchParams: SP }) {
               <time dateTime={r.at.toISOString()} className="shrink-0 tabular-nums text-xs text-muted-foreground sm:w-40 sm:pt-0.5">
                 {dateFmt.format(r.at)}
               </time>
-              <div className="flex shrink-0 gap-1.5 sm:w-44">
+              <div className="flex shrink-0 gap-1.5 sm:w-32">
                 <Badge variant="outline">{SOURCE_LABEL[r.source]}</Badge>
                 {r.level !== "INFO" && <Badge variant={r.level === "ERROR" ? "destructive" : "secondary"}>{LEVEL_LABEL[r.level]}</Badge>}
               </div>

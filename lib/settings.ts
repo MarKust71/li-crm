@@ -85,3 +85,32 @@ export async function setNotifySettings(input: NotifySettings): Promise<boolean>
 }
 
 export const requestNotifyTest = () => setSetting(NOTIFY_KEYS.testRequestedAt, new Date().toISOString());
+
+// ───────────────────────── czas pracy: podpowiedzi ─────────────────────────
+
+export const TIME_KEYS = {
+  idleMinutes: "time.idleMinutes",
+  suggestStart: "time.suggestStart",
+} as const;
+
+export const DEFAULT_IDLE_MINUTES = 120;
+export const MAX_IDLE_MINUTES = 1440;
+
+/** idleMinutes: po tylu minutach bez aktywności w aplikacji trwająca sesja dostaje propozycję zakończenia (0 = wyłączone). */
+export async function getTimeSettings(): Promise<{ idleMinutes: number; suggestStart: boolean }> {
+  const rows = await prisma.appSetting.findMany({ where: { key: { in: Object.values(TIME_KEYS) } } });
+  const m = new Map(rows.map((r) => [r.key, r.value]));
+  return {
+    idleMinutes: intIn(m.get(TIME_KEYS.idleMinutes), 0, MAX_IDLE_MINUTES, DEFAULT_IDLE_MINUTES),
+    suggestStart: m.has(TIME_KEYS.suggestStart) ? m.get(TIME_KEYS.suggestStart) === "1" : true,
+  };
+}
+
+/** Zwraca false dla wartości spoza zakresu (0 = wyłączone, inaczej 15…1440). */
+export async function setTimeSettings(input: { idleMinutes: number; suggestStart: boolean }): Promise<boolean> {
+  const n = input.idleMinutes;
+  if (!Number.isInteger(n) || n < 0 || n > MAX_IDLE_MINUTES || (n > 0 && n < 15)) return false;
+  await setSetting(TIME_KEYS.idleMinutes, String(n));
+  await setSetting(TIME_KEYS.suggestStart, input.suggestStart ? "1" : "0");
+  return true;
+}

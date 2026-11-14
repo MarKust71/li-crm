@@ -4,10 +4,10 @@ import { Suspense } from "react";
 import { logoutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { SESSION_COOKIE } from "@/lib/auth/session";
-import { Elapsed } from "@/components/elapsed";
+import { RunningTimer } from "@/components/running-timer";
 import pkg from "../package.json";
 import { countDue } from "@/lib/reminders";
-import { getRunningEntry } from "@/lib/time";
+import { getRunningEntry, listActivityTypes } from "@/lib/time";
 
 type Props = { current: "contacts" | "today" | "time" | "stats" | "log" | "settings" | "security" };
 
@@ -56,18 +56,16 @@ export function SiteNav({ current }: Props) {
 }
 
 async function RunningBadge() {
-  const running = await getRunningEntry();
+  const [running, activities] = await Promise.all([getRunningEntry(), listActivityTypes()]);
   if (!running) return null;
   return (
-    <Link
-      href="/time"
-      className="ml-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
-      title="Trwa sesja czasu pracy"
-    >
-      <span className="size-2 animate-pulse rounded-full bg-destructive" aria-hidden />
-      <Elapsed startedAt={running.startedAt.getTime()} className="font-mono tabular-nums" />
-      {running.activityType && <span className="max-w-40 truncate text-muted-foreground">{running.activityType.name}</span>}
-    </Link>
+    <RunningTimer
+      entryId={running.id}
+      startedAt={running.startedAt.getTime()}
+      activityId={running.activityType?.id ?? null}
+      activityName={running.activityType?.name ?? null}
+      activities={activities.map((a) => ({ id: a.id, name: a.name }))}
+    />
   );
 }
 
