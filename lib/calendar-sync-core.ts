@@ -55,8 +55,14 @@ export function eventTimes(dueAt: Date, allDay: boolean): EventTimes {
   };
 }
 
+export type RefType = "reminder" | "event" | "tombstone";
+
 export type SyncOp = {
-  reminderId: string;
+  /** Co jest synchronizowane: przypomnienie, zdarzenie spotkania (BOM/FU) albo "nagrobek" usuniętego zdarzenia. */
+  refType: RefType;
+  refId: string;
+  /** Zachowane dla zgodności ze starszym workflow: to samo co refId (tylko dla przypomnień). */
+  reminderId?: string;
   op: "create" | "update" | "delete";
   eventId: string | null;
   summary: string;
@@ -79,7 +85,7 @@ export type ReminderForOp = {
 /** Jaką operację wykonać w kalendarzu dla przypomnienia z oczekującą zmianą; null = nic do wysłania. */
 export function planOp(r: ReminderForOp): SyncOp | null {
   const title = r.calendarTitle ?? defaultCalendarTitle(r.kind, r.contact.name);
-  const base = { reminderId: r.id, summary: buildSummary(title, r.status), ...eventTimes(r.dueAt, r.allDay) };
+  const base = { refType: "reminder" as const, refId: r.id, reminderId: r.id, summary: buildSummary(title, r.status), ...eventTimes(r.dueAt, r.allDay) };
   if (r.status === "CANCELED") {
     return r.googleEventId ? { ...base, op: "delete", eventId: r.googleEventId, description: null } : null;
   }
@@ -102,6 +108,7 @@ export type CalendarEventLite = {
   summary?: string | null;
   description?: string | null;
   start?: { date?: string; dateTime?: string };
+  end?: { date?: string; dateTime?: string };
   updated?: string | null;
 };
 

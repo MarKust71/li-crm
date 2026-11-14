@@ -43,23 +43,27 @@ export async function addEventAction(formData: FormData) {
   const scheduledAt = scheduledRaw ? parseDateTimeInput(scheduledRaw) : null;
   if (scheduledRaw && !scheduledAt) done(id, "date");
 
-  await addContactEvent(id, {
+  const result = await addContactEvent(id, {
     type: type!,
     occurredAt: occurredAt!,
     message: text(formData.get("message"), 5000),
-    // termin spotkania ma sens tylko dla BOM umówionego
-    scheduledAt: type === "BOM_SCHEDULED" ? scheduledAt : null,
+    // termin spotkania ma sens tylko dla BOM umówionego i follow-upu (trafiają do kalendarza)
+    scheduledAt: type === "BOM_SCHEDULED" || type === "FOLLOW_UP" ? scheduledAt : null,
   });
-  done(id);
+  done(id, result.ok ? undefined : result.error);
 }
 
 export async function deleteEventAction(formData: FormData) {
   await requireAccess();
   const eventId = text(formData.get("eventId"), 64);
   if (!eventId) notFound();
-  const contactId = await deleteContactEvent(eventId);
-  if (!contactId) notFound();
-  done(contactId);
+  const result = await deleteContactEvent(eventId);
+  if (!result.ok && result.error === "not-found") notFound();
+  if (!result.ok) {
+    const owner = await prisma.contactEvent.findUnique({ where: { id: eventId }, select: { contactId: true } });
+    done(owner!.contactId, result.error);
+  }
+  done(result.ok ? result.contactId : "");
 }
 
 export async function archiveAction(formData: FormData) {
