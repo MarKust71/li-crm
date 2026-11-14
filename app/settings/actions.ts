@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity-log";
-import { requestManualSync, requestNotifyTest, setIntervalMinutes, setNotifySettings } from "@/lib/settings";
+import { requestManualSync, requestNotifyTest, setIntervalMinutes, setNotifySettings, setTimeSettings } from "@/lib/settings";
 
 export async function saveIntervalAction(formData: FormData) {
   await requireAccess();
@@ -58,4 +58,21 @@ export async function notifyTestAction() {
   await logActivity({ source: "UI", action: "settings.notify_test", summary: "Zażądano wiadomości testowej Telegram" });
   revalidatePath("/settings");
   redirect("/settings?notifyTest=1");
+}
+
+export async function saveTimeSettingsAction(formData: FormData) {
+  await requireAccess();
+  const idleMinutes = Number(formData.get("idleMinutes"));
+  const suggestStart = formData.get("suggestStart") === "on";
+  const ok = await setTimeSettings({ idleMinutes, suggestStart });
+  if (ok) {
+    await logActivity({
+      source: "UI",
+      action: "settings.time",
+      summary: `Czas pracy: próg bezczynności ${idleMinutes > 0 ? `${idleMinutes} min` : "wyłączony"}, podpowiedź włączenia ${suggestStart ? "włączona" : "wyłączona"}`,
+      details: { idleMinutes, suggestStart },
+    });
+  }
+  revalidatePath("/settings");
+  redirect(ok ? "/settings?timeSaved=1" : "/settings?error=time");
 }

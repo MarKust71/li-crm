@@ -57,15 +57,22 @@ export function isLongRunning(startedAt: Date, hours = 12): boolean {
 }
 
 /** Najwyżej jedna trwająca sesja: pilnuje tego częściowy indeks unikalny w bazie (migracja time_entry_single_running). */
-export async function startSession(activityId: string | null): Promise<TimeResult> {
+export async function startSession(activityId: string | null, startedAt: Date = new Date()): Promise<TimeResult> {
   try {
-    const e = await prisma.timeEntry.create({ data: { startedAt: new Date(), activityTypeId: activityId } });
-    await logActivity({ source: "UI", action: "time.started", summary: "Rozpoczęto sesję czasu pracy", details: { entryId: e.id } });
+    const e = await prisma.timeEntry.create({ data: { startedAt, activityTypeId: activityId } });
+    await logActivity({ source: "UI", action: "time.started", summary: "Rozpoczęto sesję czasu pracy", details: { entryId: e.id, startedAt: startedAt.toISOString() } });
     return { ok: true };
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, error: "running" };
     throw e;
   }
+}
+
+/** Zakończenie trwającej sesji w podanej chwili, z zachowaniem czynności, liczby sztuk i notatki. */
+export async function endRunningAt(id: string, endedAt: Date): Promise<TimeResult> {
+  const e = await prisma.timeEntry.findUnique({ where: { id }, select: { endedAt: true, activityTypeId: true, count: true, note: true } });
+  if (!e || e.endedAt) return { ok: false, error: "notfound" };
+  return stopSession(id, { endedAt, activityId: e.activityTypeId, count: e.count, note: e.note });
 }
 
 type EntryInput = {
