@@ -187,7 +187,7 @@ export async function getContact(id: string) {
     where: { id },
     include: {
       tags: { select: { tag: { select: { name: true } } } },
-      events: { orderBy: [{ occurredAt: "asc" }, { createdAt: "asc" }] },
+      events: { orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }] },
     },
   });
 }
