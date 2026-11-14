@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
-import { ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-import { PAGE_SIZE, listContacts, listTagNames, parseFilters, type ContactFilters } from "@/lib/contacts";
+import {
+  PAGE_SIZE,
+  listContacts,
+  listTagNames,
+  parseFilters,
+  type ContactFilters,
+  type SortKey,
+} from "@/lib/contacts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,9 +35,29 @@ function pageHref(f: ContactFilters, page: number): string {
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
   if (f.archived !== "active") p.set("archived", f.archived);
+  if (f.sort) {
+    p.set("sort", f.sort);
+    p.set("dir", f.dir || "asc");
+  }
   if (page > 1) p.set("page", String(page));
   const qs = p.toString();
   return qs ? `/contacts?${qs}` : "/contacts";
+}
+
+// Kolumny sortowalne. "Tagi" sortuje po liczbie tagów, "Ostatnia aktywność" po dacie najnowszego zdarzenia.
+const COLUMNS: { label: string; key: SortKey; hint?: string }[] = [
+  { label: "Osoba", key: "name" },
+  { label: "Etap", key: "stage" },
+  { label: "Kierunek", key: "direction" },
+  { label: "Tagi", key: "tags", hint: "wg liczby tagów" },
+  { label: "Ostatnia aktywność", key: "activity" },
+];
+
+/** Kliknięcie: rosnąco → malejąco → bez sortowania (kolejność dodania) → rosnąco… Zmiana sortowania wraca na stronę 1. */
+function sortHref(f: ContactFilters, key: SortKey): string {
+  if (f.sort !== key) return pageHref({ ...f, sort: key, dir: "asc" }, 1);
+  if (f.dir === "asc") return pageHref({ ...f, sort: key, dir: "desc" }, 1);
+  return pageHref({ ...f, sort: "", dir: "" }, 1);
 }
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -71,6 +98,10 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
     <>
       <p className="shrink-0 text-sm text-muted-foreground">
         {total === 0 ? "Brak wyników" : `${from}–${to} z ${total.toLocaleString("pl-PL")}`}
+        {" · "}
+        {filters.sort
+          ? `sortowanie: ${COLUMNS.find((c) => c.key === filters.sort)?.label} ${filters.dir === "desc" ? "malejąco" : "rosnąco"}`
+          : "kolejność dodania"}
       </p>
 
       <details className="group shrink-0 rounded-lg border" open={hasFilters}>
@@ -86,6 +117,12 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           </span>
         </summary>
         <form className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3" method="get" action="/contacts">
+          {filters.sort && (
+            <>
+              <input type="hidden" name="sort" value={filters.sort} />
+              <input type="hidden" name="dir" value={filters.dir || "asc"} />
+            </>
+          )}
           <div className={`${fieldWrap} flex-1 basis-64`}>
             <Label htmlFor="q">Szukaj</Label>
             <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
@@ -139,7 +176,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href="/contacts">Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", stage: "", direction: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>
@@ -152,11 +189,28 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
         <Table containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
-              {["Osoba", "Etap", "Kierunek", "Tagi", "Ostatnia aktywność"].map((h) => (
-                <TableHead key={h} className={stickyHead}>
-                  {h}
-                </TableHead>
-              ))}
+              {COLUMNS.map((c) => {
+                const active = filters.sort === c.key;
+                const asc = active && filters.dir === "asc";
+                const Icon = !active ? ChevronsUpDown : asc ? ArrowUp : ArrowDown;
+                const next = !active ? "rosnąco" : asc ? "malejąco" : "kolejność dodania";
+                return (
+                  <TableHead
+                    key={c.key}
+                    className={stickyHead}
+                    aria-sort={!active ? "none" : asc ? "ascending" : "descending"}
+                  >
+                    <Link
+                      href={sortHref(filters, c.key)}
+                      title={`Sortuj: ${next}${c.hint ? ` (${c.hint})` : ""}`}
+                      className={`inline-flex items-center gap-1 ${active ? "text-foreground" : "hover:text-foreground"}`}
+                    >
+                      {c.label}
+                      <Icon className={`size-3.5 ${active ? "" : "opacity-40"}`} aria-hidden />
+                    </Link>
+                  </TableHead>
+                );
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
