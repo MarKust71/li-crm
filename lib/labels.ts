@@ -50,6 +50,7 @@ export const EVENT_LABEL: Record<EventType, string> = {
   BOM_COMPLETED: "BOM odbyty",
   DECISION_YES: "Decyzja: tak",
   DECISION_NO: "Decyzja: nie",
+  FOLLOW_UP: "Follow-up (FU)",
   VIEWED_MY_PROFILE: "Wyświetlił(a) mój profil",
   NOTE: "Notatka",
 };
@@ -88,7 +89,7 @@ const COMMON_NEXT: Partial<Record<Stage, EventType[]>> = {
   OPEN_TO_TALK: ["BOM_PROPOSED"],
   BOM_PROPOSED: ["BOM_SCHEDULED", "BOM_PROPOSAL_REMINDER"],
   BOM_SCHEDULED: ["BOM_CONFIRMED", "BOM_COMPLETED", "BOM_CANCELED", "BOM_NO_SHOW"],
-  BOM_COMPLETED: ["DECISION_YES", "DECISION_NO"],
+  BOM_COMPLETED: ["DECISION_YES", "DECISION_NO", "FOLLOW_UP"],
 };
 
 export function nextSteps(stage: Stage, direction: Direction): EventType[] {

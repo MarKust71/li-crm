@@ -107,6 +107,7 @@ enum EventType {
   BOM_COMPLETED           // BP-Completed
   DECISION_YES           // Decision-YES
   DECISION_NO            // Decision-NO
+  FOLLOW_UP              // FU: spotkanie po odbytym BOM (scheduledAt = termin); nie zmienia etapu, wymaga BOM_COMPLETED
   VIEWED_MY_PROFILE      // Viewed / onViewersList / dane z content3.js
   NOTE
 }
@@ -122,8 +123,34 @@ model ContactEvent {
   dateUnknown Boolean   @default(false) // true = occurredAt to znacznik (np. 2000-01-01), nie prawdziwa data; pomijać w statystykach czasu
   createdAt   DateTime  @default(now())
 
+  // Synchronizacja z Kalendarzem Google: tylko BOM_SCHEDULED i FOLLOW_UP z terminem (scheduledAt). Patrz lib/calendar-sync*.ts.
+  durationMinutes   Int       @default(30)
+  googleEventId     String?
+  googleCalendarId  String?
+  calendarTitle     String?   // tytuł wydarzenia BEZ znacznika odbycia (dla FOLLOW_UP: tytuł dosłownie, ze znacznikiem użytkownika)
+  syncState         SyncState @default(SYNCED)
+  syncError         String?
+  syncAttempts      Int       @default(0)
+  calendarUpdatedAt DateTime?
+  updatedAt         DateTime  @default(now()) @updatedAt // wersja zmiany dla synchronizacji
+
+  @@unique([googleCalendarId, googleEventId])
   @@index([contactId, occurredAt])
   @@index([type, occurredAt])
+  @@index([syncState])
+}
+
+// Wydarzenie w kalendarzu do usunięcia po skasowaniu powiązanego zdarzenia historii (wiersz ContactEvent już nie istnieje).
+model CalendarTombstone {
+  id               String    @id @default(cuid())
+  googleEventId    String
+  googleCalendarId String
+  syncState        SyncState @default(PENDING)
+  syncAttempts     Int       @default(0)
+  syncError        String?
+  createdAt        DateTime  @default(now())
+
+  @@unique([googleCalendarId, googleEventId])
 }
 
 // ───────────────────── Tagi (dawne zakładki-segmenty) ─────────────────────

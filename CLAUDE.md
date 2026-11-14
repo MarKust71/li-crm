@@ -32,6 +32,13 @@ Schemat bazy: `prisma/schema.prisma`.
   Unieważnienie wszystkich sesji = zmiana `AUTH_SECRET`.
 - UI i komunikaty po polsku, identyfikatory w kodzie po angielsku.
 - Arkusze Google są tylko źródłem importu. Nie zapisujemy do nich.
+- Synchronizacja z Kalendarzem Google "dMb" idzie przez n8n (workflow "li-crm: synchronizacja z Kalendarzem Google", pyta aplikację
+  przez `/api/sync/*` z nagłówkiem `x-api-key`). Logika jest w aplikacji: czyste funkcje w `lib/calendar-sync-core.ts` i
+  `lib/meeting-sync-core.ts`, baza w `lib/calendar-sync.ts`. Tryb (minuty / `0` ręcznie / `-1` wyłączona) ustawia się w "Ustawienia".
+  Każda zmiana przypomnienia i spotkania oznacza wiersz `syncState = PENDING`; nowe operacje na kalendarzu dopisuj tak samo.
+- Spotkania w kalendarzu to zdarzenia `BOM_SCHEDULED` i `FOLLOW_UP` z `scheduledAt`. Stan BOM (odbyty `v `, nieobecność `x `,
+  odwołany = usunięcie wydarzenia) wynika z historii kontaktu (`meetingOutcome`). `FOLLOW_UP` wymaga terminu i odbytego BOM
+  (`BOM_COMPLETED`) i nie zmienia etapu. Usunięcie takiego zdarzenia zostawia `CalendarTombstone`, żeby n8n skasował wydarzenie.
 
 ## Środowiska
 
@@ -48,3 +55,4 @@ Schemat bazy: `prisma/schema.prisma`.
 - `AUTH_RP_ID` i `AUTH_ORIGIN` (np. `li-crm.mydmb.pl` i `https://li-crm.mydmb.pl`): domena kluczy dostępu (Touch ID).
   Klucz jest przypięty do domeny; zmiana domeny wymaga ponownej rejestracji kluczy (hasło działa zawsze)
 - `INGEST_API_KEY` – klucz dla endpointu przyjmującego dane z n8n/rozszerzenia
+- `SYNC_API_KEY` – klucz (min. 24 znaki) endpointów `/api/sync/*` dla n8n; ta sama wartość w poświadczeniu Header Auth w n8n (`x-api-key`)

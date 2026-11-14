@@ -42,6 +42,9 @@ const ERRORS: Record<string, string> = {
   reason: "Wybierz powód archiwizacji.",
   notfound: "Nie znaleziono przypomnienia (mogło zostać już zmienione lub usunięte).",
   delay: "Podaj liczbę od 1 do 3650 i jednostkę.",
+  "no-bom": "Follow-up (FU) można dodać tylko po odbytym BOM.",
+  "no-schedule": "Podaj termin (datę i godzinę) spotkania.",
+  "has-follow-up": "Nie można usunąć jedynego odbytego BOM, dopóki kontakt ma Follow-up (FU). Usuń najpierw FU.",
 };
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long", timeZone: "Europe/Warsaw" });
@@ -258,9 +261,9 @@ async function ContactCard({ params, searchParams }: Props) {
                 <Label htmlFor="next-message">Treść wiadomości (opcjonalnie)</Label>
                 <Textarea id="next-message" name="message" rows={3} maxLength={5000} />
               </div>
-              {steps.includes("BOM_SCHEDULED") && (
+              {(steps.includes("BOM_SCHEDULED") || steps.includes("FOLLOW_UP")) && (
                 <div className={field}>
-                  <Label htmlFor="next-scheduled">Termin spotkania (dla „BOM umówiony”)</Label>
+                  <Label htmlFor="next-scheduled">Termin spotkania (wymagany dla „BOM umówiony” i „Follow-up”)</Label>
                   <Input id="next-scheduled" type="datetime-local" name="scheduledAt" />
                 </div>
               )}
@@ -302,7 +305,7 @@ async function ContactCard({ params, searchParams }: Props) {
                   <Textarea id="other-message" name="message" rows={3} maxLength={5000} />
                 </div>
                 <div className={field}>
-                  <Label htmlFor="other-scheduled">Termin spotkania (tylko „BOM umówiony”)</Label>
+                  <Label htmlFor="other-scheduled">Termin spotkania (wymagany dla „BOM umówiony” i „Follow-up”)</Label>
                   <Input id="other-scheduled" type="datetime-local" name="scheduledAt" />
                 </div>
                 <Button type="submit" variant="outline" className="self-start">
