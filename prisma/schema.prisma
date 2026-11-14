@@ -218,3 +218,17 @@ model Reminder {
   @@index([status, dueAt])
   @@index([contactId])
 }
+
+// ───────────────────── Logowanie ─────────────────────
+// Ograniczanie prób zgadywania hasła (aplikacja jest publiczna, a funkcje serverless nie współdzielą pamięci,
+// więc liczniki muszą być w bazie). Blokada liczona per adres IP i globalnie, patrz lib/auth/throttle.ts.
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}

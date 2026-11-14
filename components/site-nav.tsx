@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
+import { logoutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
+import { SESSION_COOKIE } from "@/lib/auth/session";
 import { Elapsed } from "@/components/elapsed";
 import pkg from "../package.json";
 import { countDue } from "@/lib/reminders";
@@ -33,6 +36,9 @@ export function SiteNav({ current }: Props) {
       <span className="ml-2 text-xs tabular-nums text-muted-foreground" title="Wersja aplikacji (package.json)">
         v{pkg.version}
       </span>
+      <Suspense fallback={null}>
+        <LogoutButton />
+      </Suspense>
     </nav>
   );
 }
@@ -64,5 +70,17 @@ async function TodayLink({ current }: Props) {
         )}
       </Link>
     </Button>
+  );
+}
+
+/** Zależy od żądania (ciasteczko sesji), więc jest poza statyczną częścią strony: nie zależy od zmiennych z czasu budowania. */
+async function LogoutButton() {
+  if (!(await cookies()).get(SESSION_COOKIE)) return null;
+  return (
+    <form action={logoutAction}>
+      <Button type="submit" size="sm" variant="ghost" className="text-muted-foreground">
+        Wyloguj
+      </Button>
+    </form>
   );
 }

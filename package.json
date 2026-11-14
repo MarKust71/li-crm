@@ -14,7 +14,8 @@
     "snapshot": "tsx scripts/snapshot-sheets.ts",
     "import": "tsx scripts/import-sheets.ts",
     "snapshot:calendar": "tsx scripts/snapshot-calendar.ts",
-    "import:calendar": "tsx scripts/import-calendar.ts"
+    "import:calendar": "tsx scripts/import-calendar.ts",
+    "hash-password": "tsx scripts/hash-password.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -22,6 +23,7 @@
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
     "googleapis": "^190.0.0",
+    "jose": "^6.2.17",
     "lucide-react": "^1.73.0",
     "next": "16.4.6",
     "radix-ui": "^1.8.1",
