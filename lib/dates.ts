@@ -45,3 +45,12 @@ export function parseDateTimeInput(v: string): Date | null {
 export function todayWarsaw(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
+
+const inputFmt = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: TZ, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+
+/** Chwila → "YYYY-MM-DDTHH:mm" w czasie warszawskim (wartość dla <input type="datetime-local">). */
+export function toDateTimeInput(d: Date): string {
+  return inputFmt.format(d).replace(" ", "T");
+}

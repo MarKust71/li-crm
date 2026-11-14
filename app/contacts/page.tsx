@@ -12,6 +12,7 @@ import {
 } from "@/lib/contacts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SiteNav } from "@/components/site-nav";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -66,8 +67,9 @@ type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 export default function ContactsPage({ searchParams }: { searchParams: SearchParams }) {
   return (
     <main className="mx-auto flex h-dvh w-full max-w-6xl flex-col gap-3 px-4 pb-3 pt-4">
-      <header className="shrink-0">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Kontakty</h1>
+        <SiteNav current="contacts" />
       </header>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakty…</p>}>
         <ContactsContent searchParams={searchParams} />
