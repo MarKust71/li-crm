@@ -30,6 +30,7 @@ import {
   addEventAction,
   archiveAction,
   deleteEventAction,
+  toggleOpenToWorkAction,
   unarchiveAction,
   updateDetailsAction,
 } from "./actions";
@@ -106,6 +107,13 @@ async function ContactCard({ params, searchParams }: Props) {
           </Badge>
           {contact.openToWork && <Badge>OTW</Badge>}
           {contact.archived && <Badge variant="outline">zarchiwizowany</Badge>}
+          <form action={toggleOpenToWorkAction}>
+            <input type="hidden" name="id" value={contact.id} />
+            <input type="hidden" name="value" value={contact.openToWork ? "0" : "1"} />
+            <Button type="submit" variant="outline" size="sm">
+              {contact.openToWork ? "Zdejmij OTW" : "Oznacz OTW"}
+            </Button>
+          </form>
         </div>
       </header>
 

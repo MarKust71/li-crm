@@ -82,6 +82,13 @@ export async function unarchiveAction(formData: FormData) {
   done(id);
 }
 
+export async function toggleOpenToWorkAction(formData: FormData) {
+  await requireAccess();
+  const id = await contactIdFrom(formData);
+  await prisma.contact.update({ where: { id }, data: { openToWork: formData.get("value") === "1" } });
+  done(id);
+}
+
 export async function updateDetailsAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
