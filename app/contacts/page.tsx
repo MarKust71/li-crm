@@ -129,7 +129,9 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
               <tr key={c.id} className={c.archived ? styles.archived : undefined}>
                 <td>
                   <div className={styles.person}>
-                    <strong>{c.name}</strong>
+                    <Link href={`/contacts/${c.id}`} className={styles.name}>
+                      <strong>{c.name}</strong>
+                    </Link>
                     {c.openToWork && <span className={styles.badge}>OTW</span>}
                     {c.archived && <span className={styles.badgeMuted}>zarchiwizowany</span>}
                   </div>

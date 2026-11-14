@@ -219,3 +219,12 @@
     flex: 1 1 140px;
   }
 }
+
+.name {
+  color: inherit;
+  text-decoration: none;
+}
+
+.name:hover {
+  text-decoration: underline;
+}

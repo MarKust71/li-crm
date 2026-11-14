@@ -107,3 +107,13 @@ export async function listTagNames(): Promise<string[]> {
   const tags = await prisma.tag.findMany({ select: { name: true } });
   return tags.map((t) => t.name).sort((a, b) => a.localeCompare(b, "pl"));
 }
+
+export async function getContact(id: string) {
+  return prisma.contact.findUnique({
+    where: { id },
+    include: {
+      tags: { select: { tag: { select: { name: true } } } },
+      events: { orderBy: [{ occurredAt: "asc" }, { createdAt: "asc" }] },
+    },
+  });
+}
