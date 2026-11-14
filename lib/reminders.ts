@@ -1,0 +1,148 @@
+import type { Prisma, ReminderKind, ReminderSource } from "@prisma/client";
+import { connection } from "next/server";
+import { prisma } from "./prisma";
+import { addDays, parseDateInput, todayWarsaw, warsawDateOf } from "./dates";
+
+export const OVERDUE_PAGE_SIZE = 50;
+/** LinkedIn nie pozwala ponownie zaprosić osoby wcześniej niż 3 tygodnie po wycofaniu zaproszenia. */
+export const RECONNECT_DAYS = 21;
+export const UPCOMING_DAYS = 7;
+
+export type ReminderResult = { ok: true } | { ok: false; error: string };
+
+const SELECT = {
+  id: true,
+  kind: true,
+  dueAt: true,
+  allDay: true,
+  note: true,
+  status: true,
+  source: true,
+  doneAt: true,
+  contact: { select: { id: true, name: true, profileUrl: true } },
+} satisfies Prisma.ReminderSelect;
+
+export type ReminderRow = Prisma.ReminderGetPayload<{ select: typeof SELECT }>;
+
+/** Granice dnia w czasie warszawskim: [start, tomorrow) to "dziś". */
+function dayBounds() {
+  const today = todayWarsaw();
+  return {
+    start: parseDateInput(today)!,
+    tomorrow: parseDateInput(addDays(today, 1))!,
+    upcomingEnd: parseDateInput(addDays(today, 1 + UPCOMING_DAYS))!,
+  };
+}
+
+// ───────────────────────── odczyt ─────────────────────────
+
+export async function listToday(overduePage: number) {
+  // Liczy "dziś", więc najpierw jawnie oznacz jako zależne od żądania (jak countDue).
+  await connection();
+  const { start, tomorrow, upcomingEnd } = dayBounds();
+  const open = { status: "OPEN" } as const;
+  const overdueWhere: Prisma.ReminderWhereInput = { ...open, dueAt: { lt: start } };
+
+  const overdueTotal = await prisma.reminder.count({ where: overdueWhere });
+  const overduePages = Math.max(1, Math.ceil(overdueTotal / OVERDUE_PAGE_SIZE));
+  const page = Math.min(Math.max(1, overduePage), overduePages);
+
+  const [overdue, today, upcoming] = await Promise.all([
+    prisma.reminder.findMany({
+      where: overdueWhere,
+      orderBy: [{ dueAt: "asc" }, { id: "asc" }],
+      skip: (page - 1) * OVERDUE_PAGE_SIZE,
+      take: OVERDUE_PAGE_SIZE,
+      select: SELECT,
+    }),
+    prisma.reminder.findMany({ where: { ...open, dueAt: { gte: start, lt: tomorrow } }, orderBy: [{ dueAt: "asc" }, { id: "asc" }], select: SELECT }),
+    prisma.reminder.findMany({ where: { ...open, dueAt: { gte: tomorrow, lt: upcomingEnd } }, orderBy: [{ dueAt: "asc" }, { id: "asc" }], select: SELECT }),
+  ]);
+  return { overdue, overdueTotal, overduePages, overduePage: page, today, upcoming };
+}
+
+/** Liczba przypomnień do zrobienia: zaległe + dzisiejsze (do znaczka w nawigacji). */
+export async function countDue(): Promise<number> {
+  // Liczy "dziś", więc musi być jawnie zależne od żądania (cacheComponents zabrania czasu w prerenderze).
+  await connection();
+  const { tomorrow } = dayBounds();
+  return prisma.reminder.count({ where: { status: "OPEN", dueAt: { lt: tomorrow } } });
+}
+
+/** Przypomnienia kontaktu bez anulowanych: otwarte najpierw (najbliższe), potem odbyte (najnowsze). */
+export async function listContactReminders(contactId: string): Promise<ReminderRow[]> {
+  const rows = await prisma.reminder.findMany({ where: { contactId, status: { not: "CANCELED" } }, select: SELECT });
+  return rows.sort((a, b) => {
+    if (a.status !== b.status) return a.status === "OPEN" ? -1 : 1;
+    return a.status === "OPEN" ? a.dueAt.getTime() - b.dueAt.getTime() : b.dueAt.getTime() - a.dueAt.getTime();
+  });
+}
+
+// ───────────────────────── zapis ─────────────────────────
+
+export async function createReminder(input: {
+  contactId: string;
+  kind: ReminderKind;
+  /** "YYYY-MM-DD" (przypomnienie całodniowe, czas warszawski) */
+  dueDate: string;
+  note: string | null;
+  source: ReminderSource;
+}): Promise<ReminderResult> {
+  const dueAt = parseDateInput(input.dueDate);
+  if (!dueAt) return { ok: false, error: "date" };
+  const exists = await prisma.contact.findUnique({ where: { id: input.contactId }, select: { id: true } });
+  if (!exists) return { ok: false, error: "notfound" };
+  await prisma.reminder.create({
+    data: { contactId: input.contactId, kind: input.kind, dueAt, allDay: true, note: input.note, source: input.source },
+  });
+  return { ok: true };
+}
+
+export async function completeReminder(id: string): Promise<ReminderResult> {
+  const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { status: "DONE", doneAt: new Date() } });
+  return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
+}
+
+export async function reopenReminder(id: string): Promise<ReminderResult> {
+  const r = await prisma.reminder.updateMany({ where: { id, status: "DONE" }, data: { status: "OPEN", doneAt: null } });
+  return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
+}
+
+export async function rescheduleReminder(id: string, dueDate: string): Promise<ReminderResult> {
+  const dueAt = parseDateInput(dueDate);
+  if (!dueAt) return { ok: false, error: "date" };
+  const r = await prisma.reminder.updateMany({ where: { id, status: "OPEN" }, data: { dueAt, allDay: true } });
+  return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
+}
+
+/** Anulowanie zostawia wiersz w bazie (status CANCELED), żeby n8n mógł skasować wydarzenie w kalendarzu Google. */
+export async function cancelReminder(id: string): Promise<ReminderResult> {
+  const r = await prisma.reminder.updateMany({ where: { id, status: { not: "CANCELED" } }, data: { status: "CANCELED" } });
+  return r.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
+}
+
+// ───────────────────────── automaty przy zdarzeniach kontaktu ─────────────────────────
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Wywoływane z addContactEvent (w tej samej transakcji):
+ *  - wycofanie zaproszenia → przypomnienie RECONNECT za 3 tygodnie (o ile kontakt nie ma już otwartego),
+ *  - ponowne zaproszenie (INVITE_SENT) → zamyka otwarty RECONNECT jako odbyty.
+ */
+export async function applyEventAutomations(tx: Tx, contactId: string, type: string, occurredAt: Date) {
+  if (type === "INVITE_WITHDRAWN") {
+    const open = await tx.reminder.count({ where: { contactId, kind: "RECONNECT", status: "OPEN" } });
+    if (open === 0) {
+      const dueAt = parseDateInput(addDays(warsawDateOf(occurredAt), RECONNECT_DAYS));
+      if (dueAt) {
+        await tx.reminder.create({ data: { contactId, kind: "RECONNECT", dueAt, allDay: true, source: "AUTO" } });
+      }
+    }
+  } else if (type === "INVITE_SENT") {
+    await tx.reminder.updateMany({
+      where: { contactId, kind: "RECONNECT", status: "OPEN" },
+      data: { status: "DONE", doneAt: new Date() },
+    });
+  }
+}

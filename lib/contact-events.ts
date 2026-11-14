@@ -1,5 +1,6 @@
 import type { ArchiveReason, EventType, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+import { applyEventAutomations } from "./reminders";
 import { computeStage } from "./stage";
 
 // Jedyne miejsce zapisu zdarzeń: każde dodanie/usunięcie przelicza Contact.stage (CLAUDE.md).
@@ -24,6 +25,7 @@ export async function addContactEvent(
       },
     });
     await recomputeStage(tx, contactId);
+    await applyEventAutomations(tx, contactId, data.type, data.occurredAt);
   });
 }
 

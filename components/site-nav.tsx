@@ -2,9 +2,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Elapsed } from "@/components/elapsed";
+import { countDue } from "@/lib/reminders";
 import { getRunningEntry } from "@/lib/time";
 
-type Props = { current: "contacts" | "time" };
+type Props = { current: "contacts" | "today" | "time" };
 
 /** Wspólna nawigacja; gdy trwa sesja czasu pracy, pokazuje jej licznik na każdej stronie. */
 export function SiteNav({ current }: Props) {
@@ -13,6 +14,15 @@ export function SiteNav({ current }: Props) {
       <Button asChild size="sm" variant={current === "contacts" ? "secondary" : "ghost"}>
         <Link href="/contacts">Kontakty</Link>
       </Button>
+      <Suspense
+        fallback={
+          <Button asChild size="sm" variant={current === "today" ? "secondary" : "ghost"}>
+            <Link href="/today">Dziś</Link>
+          </Button>
+        }
+      >
+        <TodayLink current={current} />
+      </Suspense>
       <Button asChild size="sm" variant={current === "time" ? "secondary" : "ghost"}>
         <Link href="/time">Czas pracy</Link>
       </Button>
@@ -36,5 +46,19 @@ async function RunningBadge() {
       <Elapsed startedAt={running.startedAt.getTime()} className="font-mono tabular-nums" />
       {running.activityType && <span className="max-w-40 truncate text-muted-foreground">{running.activityType.name}</span>}
     </Link>
+  );
+}
+
+async function TodayLink({ current }: Props) {
+  const due = await countDue();
+  return (
+    <Button asChild size="sm" variant={current === "today" ? "secondary" : "ghost"}>
+      <Link href="/today">
+        Dziś
+        {due > 0 && (
+          <span className="ml-1 rounded-full bg-destructive px-1.5 text-xs font-medium text-white tabular-nums">{due}</span>
+        )}
+      </Link>
+    </Button>
   );
 }

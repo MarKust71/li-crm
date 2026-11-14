@@ -21,15 +21,28 @@ type Props = {
   action: (formData: FormData) => void | Promise<void>;
   title: string;
   description: string;
+  /** Etykiety (domyślnie "usuń" / "Usuń") i dodatkowe ukryte pola formularza (np. adres powrotu). */
+  triggerLabel?: string;
+  confirmLabel?: string;
+  extra?: Record<string, string>;
 };
 
 /** Potwierdzenie nieodwracalnego usunięcia; wysyła zwykły formularz do Server Action. */
-export function ConfirmDeleteDialog({ fieldName, id, action, title, description }: Props) {
+export function ConfirmDeleteDialog({
+  fieldName,
+  id,
+  action,
+  title,
+  description,
+  triggerLabel = "usuń",
+  confirmLabel = "Usuń",
+  extra,
+}: Props) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="ghost" size="xs" className="text-muted-foreground">
-          usuń
+          {triggerLabel}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -41,8 +54,11 @@ export function ConfirmDeleteDialog({ fieldName, id, action, title, description 
           <AlertDialogCancel>Anuluj</AlertDialogCancel>
           <form action={action}>
             <input type="hidden" name={fieldName} value={id} />
+            {Object.entries(extra ?? {}).map(([k, v]) => (
+              <input key={k} type="hidden" name={k} value={v} />
+            ))}
             <AlertDialogAction type="submit" variant="destructive">
-              Usuń
+              {confirmLabel}
             </AlertDialogAction>
           </form>
         </AlertDialogFooter>

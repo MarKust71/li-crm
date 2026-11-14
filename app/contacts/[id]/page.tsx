@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { AddReminderForm, ReminderItem } from "@/components/reminders";
 import { getContact } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
+import { listContactReminders } from "@/lib/reminders";
 import {
   ALL_EVENT_TYPES,
   ARCHIVE_REASONS,
@@ -38,6 +40,8 @@ const ERRORS: Record<string, string> = {
   type: "Nieznany typ zdarzenia.",
   date: "Niepoprawna data.",
   reason: "Wybierz powód archiwizacji.",
+  notfound: "Nie znaleziono przypomnienia (mogło zostać już zmienione lub usunięte).",
+  delay: "Podaj liczbę od 1 do 3650 i jednostkę.",
 };
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long", timeZone: "Europe/Warsaw" });
@@ -78,6 +82,7 @@ async function ContactCard({ params, searchParams }: Props) {
   const sp = await searchParams;
   const contact = await getContact(id);
   if (!contact) notFound();
+  const reminders = await listContactReminders(id);
 
   const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   const error = errorKey ? ERRORS[errorKey] : undefined;
@@ -308,6 +313,22 @@ async function ContactCard({ params, searchParams }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Przypomnienia ({reminders.filter((r) => r.status === "OPEN").length} otwartych)</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {reminders.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {reminders.map((r) => (
+                <ReminderItem key={r.id} r={r} today={today} back={`/contacts/${contact.id}`} showContact={false} />
+              ))}
+            </ul>
+          )}
+          <AddReminderForm contactId={contact.id} back={`/contacts/${contact.id}`} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

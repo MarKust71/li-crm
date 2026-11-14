@@ -78,6 +78,7 @@ model Contact {
   events   ContactEvent[]
   tags     ContactTag[]
   captures Capture[]
+  reminders Reminder[]
 
   @@index([stage])
   @@index([direction, stage, archived])
@@ -173,4 +174,47 @@ model TimeEntry {
   note           String?
 
   @@index([startedAt])
+}
+
+// ───────────────────── Przypomnienia ("Dziś do zrobienia") ─────────────────────
+// Zastępują dwa workflowy n8n (formularze → wydarzenia w kalendarzu Google "dMb").
+// Przypomnienie ustawia się ręcznie (z opóźnieniem) albo powstaje automatycznie (re-connect +3 tygodnie
+// po wycofaniu zaproszenia). googleEventId łączy je z wydarzeniem w kalendarzu (synchronizacja przez n8n).
+
+enum ReminderKind {
+  REMINDER  // ogólne przypomnienie o kontakcie (treść w note)
+  RECONNECT // ponowne zaproszenie: LinkedIn nie pozwala wcześniej niż 3 tygodnie po wycofaniu
+}
+
+enum ReminderStatus {
+  OPEN
+  DONE     // odbyte ("v ", "x ", "- " na początku tytułu w kalendarzu)
+  CANCELED // usunięte z listy; zostaje w bazie, żeby n8n mógł skasować wydarzenie w kalendarzu
+}
+
+enum ReminderSource {
+  APP    // dodane ręcznie w aplikacji
+  AUTO   // utworzone automatycznie (re-connect po wycofaniu zaproszenia)
+  IMPORT // zaimportowane z kalendarza Google
+}
+
+model Reminder {
+  id               String         @id @default(cuid())
+  contactId        String
+  contact          Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  kind             ReminderKind   @default(REMINDER)
+  dueAt            DateTime       // dla wydarzeń całodniowych: północ czasu warszawskiego
+  allDay           Boolean        @default(true)
+  note             String?        // np. "umówić BP", "AYO?", wątek LinkedIn
+  status           ReminderStatus @default(OPEN)
+  doneAt           DateTime?
+  source           ReminderSource @default(APP)
+  googleEventId    String?        // id wydarzenia w kalendarzu Google
+  googleCalendarId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([googleCalendarId, googleEventId])
+  @@index([status, dueAt])
+  @@index([contactId])
 }
