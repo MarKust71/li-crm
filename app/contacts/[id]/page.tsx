@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { SubmitButton } from "@/components/submit-button";
-import { InviteMessageField } from "@/components/invite-message-field";
+import { StepMessageField } from "@/components/step-message-field";
 import { SiteNav } from "@/components/site-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { AddReminderForm, ReminderItem } from "@/components/reminders";
 import { contactNeighbors, getContact, listContextFrom, type ContactFilters } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
 import { countSameLocation } from "@/lib/contact-events";
+import { isSuggestedStep } from "@/lib/invite-message";
 import { upcomingMeetings } from "@/lib/meeting-sync-core";
 import { listContactReminders } from "@/lib/reminders";
 import {
@@ -394,8 +395,8 @@ async function ContactCard({ params, searchParams }: Props) {
               </div>
               <div className={field}>
                 <Label htmlFor="next-message">Treść wiadomości (opcjonalnie)</Label>
-                {steps[0] === "INVITE_SENT" ? (
-                  <InviteMessageField salutation={contact.salutation} />
+                {isSuggestedStep(steps[0]) ? (
+                  <StepMessageField key={steps[0]} step={steps[0]} salutation={contact.salutation} />
                 ) : (
                   <Textarea id="next-message" name="message" rows={3} maxLength={5000} />
                 )}
