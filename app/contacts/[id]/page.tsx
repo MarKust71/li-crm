@@ -17,6 +17,7 @@ import { AddReminderForm, ReminderItem } from "@/components/reminders";
 import { contactNeighbors, getContact, listContextFrom, type ContactFilters } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
 import { countSameLocation } from "@/lib/contact-events";
+import { upcomingMeetings } from "@/lib/meeting-sync-core";
 import { listContactReminders } from "@/lib/reminders";
 import {
   ALL_EVENT_TYPES,
@@ -49,6 +50,13 @@ const ERRORS: Record<string, string> = {
   "no-schedule": "Podaj termin (datę i godzinę) spotkania.",
   "has-follow-up": "Nie można usunąć jedynego odbytego BOM, dopóki kontakt ma Follow-up (FU). Usuń najpierw FU.",
 };
+
+/** "1 otwarte przypomnienie", "2–4 otwarte przypomnienia", "5+ otwartych przypomnień" (z wyjątkiem 12–14). */
+function openRemindersLabel(n: number): string {
+  if (n === 1) return "otwarte przypomnienie";
+  const last = n % 10;
+  return last >= 2 && last <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? "otwarte przypomnienia" : "otwartych przypomnień";
+}
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long", timeZone: "Europe/Warsaw" });
 const dateTimeFmt = new Intl.DateTimeFormat("pl-PL", {
@@ -149,6 +157,9 @@ async function ContactCard({ params, searchParams }: Props) {
   const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   const error = errorKey ? ERRORS[errorKey] : undefined;
   const today = todayWarsaw();
+  const openReminders = reminders.filter((r) => r.status === "OPEN").length;
+  const meetings = upcomingMeetings(contact.events, new Date());
+  const archiveInfo = [contact.archiveReason ? ARCHIVE_REASON_LABEL[contact.archiveReason] : null, contact.archivedAt ? dateFmt.format(contact.archivedAt) : null].filter(Boolean).join(", ");
   const steps = nextSteps(contact.stage, contact.direction);
   const tags = contact.tags.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b, "pl"));
 
@@ -179,6 +190,28 @@ async function ContactCard({ params, searchParams }: Props) {
           </form>
         </div>
       </header>
+
+      {contact.archived && (
+        <Alert className="mb-4">
+          <AlertDescription>
+            <p>
+              <strong>Kontakt zarchiwizowany</strong>
+              {archiveInfo ? ` (${archiveInfo})` : ""}. Jest ukryty na liście kontaktów (do przywrócenia w sekcji „Przywróć kontakt”). Zdarzenia i przypomnienia
+              możesz nadal dodawać, ale kontakt pozostanie ukryty.
+            </p>
+            {openReminders > 0 && (
+              <p className="mt-1">
+                Ma {openReminders} {openRemindersLabel(openReminders)}: nadal widać je w „Dziś”, na Telegramie i w kalendarzu.
+              </p>
+            )}
+            {meetings.length > 0 && (
+              <p className="mt-1">
+                Umówione spotkanie: {meetings.map((m) => `${m.type === "FOLLOW_UP" ? "FU" : "BOM"} ${dateTimeFmt.format(m.scheduledAt)}`).join(", ")} (zostaje w kalendarzu i dostanie przypomnienie na Telegramie).
+              </p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="destructive" role="alert" className="mb-4">
@@ -325,6 +358,19 @@ async function ContactCard({ params, searchParams }: Props) {
                       ))}
                     </NativeSelect>
                   </div>
+                  {openReminders > 0 && (
+                    <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <input type="checkbox" name="cancelReminders" defaultChecked className="mt-0.5" />
+                      <span>
+                        Anuluj {openReminders} {openRemindersLabel(openReminders)} (znikną też z kalendarza)
+                      </span>
+                    </label>
+                  )}
+                  {meetings.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Uwaga: umówione spotkanie ({meetings.map((m) => `${m.type === "FOLLOW_UP" ? "FU" : "BOM"} ${dateTimeFmt.format(m.scheduledAt)}`).join(", ")}) zostaje w kalendarzu. Jeśli się nie odbędzie, odwołaj je w historii kontaktu.
+                    </p>
+                  )}
                   <Button type="submit" variant="outline" className="self-start">
                     Archiwizuj
                   </Button>

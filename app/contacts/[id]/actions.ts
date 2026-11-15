@@ -74,7 +74,7 @@ export async function archiveAction(formData: FormData) {
   const id = await contactIdFrom(formData);
   const reason = text(formData.get("reason"), 30) as ArchiveReason | null;
   if (!reason || !ARCHIVE_REASONS.some((r) => r.value === reason)) await done(id, "reason");
-  await setArchived(id, reason);
+  await setArchived(id, reason, { cancelReminders: formData.get("cancelReminders") === "on" });
   await done(id);
 }
 

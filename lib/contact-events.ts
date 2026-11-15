@@ -116,7 +116,7 @@ export async function deleteContactEvent(eventId: string): Promise<DeleteResult>
   });
 }
 
-export async function setArchived(contactId: string, reason: ArchiveReason | null) {
+export async function setArchived(contactId: string, reason: ArchiveReason | null, opts: { cancelReminders?: boolean } = {}) {
   await prisma.$transaction(async (tx) => {
     await tx.contact.update({
       where: { id: contactId },
@@ -124,13 +124,18 @@ export async function setArchived(contactId: string, reason: ArchiveReason | nul
         ? { archived: true, archiveReason: reason, archivedAt: new Date() }
         : { archived: false, archiveReason: null, archivedAt: null },
     });
+    // Anulowanie zostawia wiersze (CANCELED), a synchronizacja sama usuwa ich wydarzenia z kalendarza Google.
+    const canceled =
+      reason && opts.cancelReminders
+        ? (await tx.reminder.updateMany({ where: { contactId, status: "OPEN" }, data: { status: "CANCELED", syncState: "PENDING", syncAttempts: 0, syncError: null } })).count
+        : 0;
     await logActivity(
       {
         source: "UI",
         action: reason ? "contact.archived" : "contact.unarchived",
         contactId,
-        summary: `${reason ? "Zarchiwizowano" : "Przywrócono z archiwum"}: ${await contactName(contactId, tx)}`,
-        ...(reason ? { details: { reason } } : {}),
+        summary: `${reason ? "Zarchiwizowano" : "Przywrócono z archiwum"}: ${await contactName(contactId, tx)}${canceled ? ` (anulowano ${canceled} przypomnień)` : ""}`,
+        ...(reason ? { details: { reason, canceledReminders: canceled } } : {}),
       },
       tx,
     );
