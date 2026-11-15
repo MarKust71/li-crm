@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AddReminderForm, ReminderItem } from "@/components/reminders";
 import { contactNeighbors, getContact, listContextFrom, type ContactFilters } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
+import { countSameLocation } from "@/lib/contact-events";
 import { listContactReminders } from "@/lib/reminders";
 import {
   ALL_EVENT_TYPES,
@@ -143,7 +144,7 @@ async function ContactCard({ params, searchParams }: Props) {
   const sp = await searchParams;
   const contact = await getContact(id);
   if (!contact) notFound();
-  const reminders = await listContactReminders(id);
+  const [reminders, sameLocation] = await Promise.all([listContactReminders(id), countSameLocation(id, contact.location)]);
 
   const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   const error = errorKey ? ERRORS[errorKey] : undefined;
@@ -266,6 +267,19 @@ async function ContactCard({ params, searchParams }: Props) {
                 <div className={field}>
                   <Label htmlFor="occupation">Zajęcie</Label>
                   <Input id="occupation" name="occupation" defaultValue={contact.occupation ?? ""} maxLength={300} />
+                </div>
+                <div className={field}>
+                  <Label htmlFor="location">Lokalizacja</Label>
+                  <Input id="location" name="location" defaultValue={contact.location ?? ""} maxLength={200} />
+                  {sameLocation > 0 && (
+                    <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <input type="checkbox" name="applyLocationToAll" defaultChecked className="mt-0.5" />
+                      <span>
+                        Przy zmianie zmień też u {sameLocation.toLocaleString("pl-PL")} {sameLocation === 1 ? "innego kontaktu" : "innych kontaktów"} z lokalizacją „{contact.location}” (cały
+                        zapis, bez rozróżniania wielkości liter)
+                      </span>
+                    </label>
+                  )}
                 </div>
                 <div className={field}>
                   <Label htmlFor="salutation">Zwrot (np. „Pani Aniu”)</Label>

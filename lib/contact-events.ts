@@ -149,15 +149,42 @@ export async function setOpenToWork(contactId: string, value: boolean) {
 
 export async function updateContactDetails(
   contactId: string,
-  data: { occupation: string | null; salutation: string | null; email: string | null; phone: string | null; info: string | null },
+  data: { occupation: string | null; location: string | null; salutation: string | null; email: string | null; phone: string | null; info: string | null },
+  opts: { applyLocationToAll?: boolean } = {},
 ) {
   await prisma.$transaction(async (tx) => {
-    const before = await tx.contact.findUnique({ where: { id: contactId }, select: { name: true, occupation: true, salutation: true, email: true, phone: true, info: true } });
+    const before = await tx.contact.findUnique({ where: { id: contactId }, select: { name: true, occupation: true, location: true, salutation: true, email: true, phone: true, info: true } });
     await tx.contact.update({ where: { id: contactId }, data });
     // w logu tylko nazwy zmienionych pól (e-mail i telefon to dane osobowe)
-    const changed = (["occupation", "salutation", "email", "phone", "info"] as const).filter((k) => (before?.[k] ?? null) !== data[k]);
+    const changed = (["occupation", "location", "salutation", "email", "phone", "info"] as const).filter((k) => (before?.[k] ?? null) !== data[k]);
     if (changed.length) {
       await logActivity({ source: "UI", action: "contact.updated", contactId, summary: `Zmieniono dane kontaktu ${before?.name ?? ""}: ${changed.join(", ")}`, details: { fields: changed } }, tx);
     }
+
+    // Zmiana lokalizacji dla wszystkich kontaktów z taką samą dotychczasową wartością (jak w arkuszach: "Wałbrzych, dolnośląskie" → "dolnośląskie").
+    // Dopasowanie dokładne (bez rozróżniania wielkości liter), nie "zawiera", żeby krótki zapis nie zmienił setek innych.
+    const old = before?.location?.trim() || null;
+    if (opts.applyLocationToAll && old && (before?.location ?? null) !== data.location) {
+      const res = await tx.contact.updateMany({ where: { id: { not: contactId }, location: { equals: old, mode: "insensitive" } }, data: { location: data.location } });
+      if (res.count > 0) {
+        await logActivity(
+          {
+            source: "UI",
+            action: "contacts.location_bulk",
+            contactId,
+            summary: `Zmieniono lokalizację „${old}” → „${data.location ?? "(puste)"}” u ${res.count} innych kontaktów`,
+            details: { from: old, to: data.location, count: res.count },
+          },
+          tx,
+        );
+      }
+    }
   });
+}
+
+/** Ile innych kontaktów ma taką samą lokalizację (bez rozróżniania wielkości liter): do podpowiedzi przy edycji. */
+export async function countSameLocation(contactId: string, location: string | null): Promise<number> {
+  const old = location?.trim();
+  if (!old) return 0;
+  return prisma.contact.count({ where: { id: { not: contactId }, location: { equals: old, mode: "insensitive" } } });
 }

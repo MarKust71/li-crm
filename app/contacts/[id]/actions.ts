@@ -97,10 +97,11 @@ export async function updateDetailsAction(formData: FormData) {
   const id = await contactIdFrom(formData);
   await updateContactDetails(id, {
     occupation: text(formData.get("occupation"), 300),
+    location: text(formData.get("location"), 200),
     salutation: text(formData.get("salutation"), 100),
     email: text(formData.get("email"), 200),
     phone: text(formData.get("phone"), 50),
     info: text(formData.get("info"), 10000),
-  });
+  }, { applyLocationToAll: formData.get("applyLocationToAll") === "on" });
   await done(id);
 }
