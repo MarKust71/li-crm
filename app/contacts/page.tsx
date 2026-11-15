@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DIRECTIONS, DIRECTION_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
+import { STAGES, STAGE_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kontakty · li-crm" };
 
@@ -32,7 +32,6 @@ function pageHref(f: ContactFilters, page: number): string {
   const p = new URLSearchParams();
   if (f.q) p.set("q", f.q);
   if (f.stage) p.set("stage", f.stage);
-  if (f.direction) p.set("direction", f.direction);
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
   if (f.archived !== "active") p.set("archived", f.archived);
@@ -48,8 +47,8 @@ function pageHref(f: ContactFilters, page: number): string {
 // Kolumny sortowalne. "Tagi" sortuje po liczbie tagów, "Ostatnia aktywność" po dacie najnowszego zdarzenia.
 const COLUMNS: { label: string; key: SortKey; hint?: string }[] = [
   { label: "Osoba", key: "name" },
+  { label: "Zajęcie", key: "occupation" },
   { label: "Etap", key: "stage" },
-  { label: "Kierunek", key: "direction" },
   { label: "Tagi", key: "tags", hint: "wg liczby tagów" },
   { label: "Ostatnia aktywność", key: "activity" },
 ];
@@ -84,13 +83,12 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   const hasFilters = Boolean(
-    filters.q || filters.stage || filters.direction || filters.tag || filters.otw || filters.archived !== "active",
+    filters.q || filters.stage || filters.tag || filters.otw || filters.archived !== "active",
   );
 
   const active: string[] = [];
   if (filters.q) active.push(`Szukaj: ${filters.q}`);
   if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
-  if (filters.direction) active.push(`Kierunek: ${DIRECTION_LABEL[filters.direction]}`);
   if (filters.tag) active.push(`Tag: ${filters.tag}`);
   if (filters.otw) active.push("Open to work");
   if (filters.archived === "only") active.push("Tylko zarchiwizowane");
@@ -127,7 +125,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           )}
           <div className={`${fieldWrap} flex-1 basis-64`}>
             <Label htmlFor="q">Szukaj</Label>
-            <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
+            <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko, zajęcie, lokalizacja lub adres profilu" />
           </div>
           <div className={fieldWrap}>
             <Label htmlFor="stage">Etap</Label>
@@ -136,17 +134,6 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
               {STAGES.map((s) => (
                 <NativeSelectOption key={s.value} value={s.value}>
                   {s.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className={fieldWrap}>
-            <Label htmlFor="direction">Kierunek</Label>
-            <NativeSelect id="direction" name="direction" defaultValue={filters.direction}>
-              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
-              {DIRECTIONS.map((d) => (
-                <NativeSelectOption key={d.value} value={d.value}>
-                  {d.label}
                 </NativeSelectOption>
               ))}
             </NativeSelect>
@@ -178,7 +165,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href={pageHref({ ...filters, q: "", stage: "", direction: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", stage: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>
@@ -226,7 +213,6 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                     {c.openToWork && <Badge>OTW</Badge>}
                     {c.archived && <Badge variant="outline">zarchiwizowany</Badge>}
                   </div>
-                  {c.occupation && <div className="mt-0.5 text-xs text-muted-foreground">{c.occupation}</div>}
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {c.location && <span>{c.location} · </span>}
                     <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
@@ -234,8 +220,10 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                     </a>
                   </div>
                 </TableCell>
+                <TableCell className="min-w-48 max-w-80 whitespace-normal" title={c.occupation ?? undefined}>
+                  {c.occupation ? <span className="line-clamp-3">{c.occupation}</span> : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell>{STAGE_LABEL[c.stage]}</TableCell>
-                <TableCell>{DIRECTION_LABEL[c.direction]}</TableCell>
                 <TableCell className="whitespace-normal">
                   <div className="flex max-w-72 flex-wrap gap-1">
                     {c.tags.slice(0, 3).map((t) => (
