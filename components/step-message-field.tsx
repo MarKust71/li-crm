@@ -9,7 +9,7 @@ const salutationInput = () =>
   document.getElementById("salutation") as HTMLInputElement | null;
 
 /**
- * Pole treści wiadomości z podpowiedzią dla kroku (zaproszenie wysłane / zaakceptowane). Podpowiedź odświeża się, gdy zmieniasz pole „Zwrot” (na żywo, jeszcze przed zapisem) albo gdy zapisany
+ * Pole treści wiadomości z podpowiedzią dla kroku (zaproszenie wysłane / podziękowanie wysłane). Podpowiedź odświeża się, gdy zmieniasz pole „Zwrot” (na żywo, jeszcze przed zapisem) albo gdy zapisany
  * zwrot zmieni się na serwerze, ale tylko dopóki sam nie zmienisz treści: wpisany przez Ciebie tekst nie jest nadpisywany.
  */
 export function StepMessageField({
