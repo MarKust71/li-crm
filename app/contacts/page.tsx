@@ -10,6 +10,7 @@ import {
   type ContactFilters,
   type SortKey,
 } from "@/lib/contacts";
+import { InfoTip } from "@/components/info-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SiteNav } from "@/components/site-nav";
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DIRECTIONS, DIRECTION_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
+import { STAGES, STAGE_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kontakty · li-crm" };
 
@@ -31,8 +32,9 @@ const fieldWrap = "flex min-w-36 flex-col gap-1 text-xs text-muted-foreground ma
 function pageHref(f: ContactFilters, page: number): string {
   const p = new URLSearchParams();
   if (f.q) p.set("q", f.q);
+  if (f.location) p.set("location", f.location);
+  if (f.occupation) p.set("occupation", f.occupation);
   if (f.stage) p.set("stage", f.stage);
-  if (f.direction) p.set("direction", f.direction);
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
   if (f.archived !== "active") p.set("archived", f.archived);
@@ -48,8 +50,8 @@ function pageHref(f: ContactFilters, page: number): string {
 // Kolumny sortowalne. "Tagi" sortuje po liczbie tagów, "Ostatnia aktywność" po dacie najnowszego zdarzenia.
 const COLUMNS: { label: string; key: SortKey; hint?: string }[] = [
   { label: "Osoba", key: "name" },
+  { label: "Zajęcie", key: "occupation" },
   { label: "Etap", key: "stage" },
-  { label: "Kierunek", key: "direction" },
   { label: "Tagi", key: "tags", hint: "wg liczby tagów" },
   { label: "Ostatnia aktywność", key: "activity" },
 ];
@@ -59,6 +61,22 @@ function sortHref(f: ContactFilters, key: SortKey): string {
   if (f.sort !== key) return pageHref({ ...f, sort: key, dir: "asc" }, 1);
   if (f.dir === "asc") return pageHref({ ...f, sort: key, dir: "desc" }, 1);
   return pageHref({ ...f, sort: "", dir: "" }, 1);
+}
+
+/** Podpowiedź (i) przy polach tekstowych: ta sama składnia we wszystkich trzech. */
+function SearchHelp() {
+  return (
+    <InfoTip label="Jak działa wyszukiwanie">
+      <p className="mb-1 font-medium">Pola Szukaj, Lokalizacja i Zajęcie mają tę samą składnię, a ich warunki łączy ORAZ (każde kolejne pole zawęża wynik).</p>
+      <ul className="list-disc space-y-0.5 pl-4">
+        <li>spacja = LUB: <code>dolnośląskie BR</code></li>
+        <li>+ = ORAZ: <code>księgowa+BR</code></li>
+        <li>cudzysłów = dokładny ciąg: <code>&quot;obsługa klienta&quot;</code></li>
+        <li>łączenie: <code>a+b c</code> to (a ORAZ b) LUB c</li>
+        <li>Szukaj: imię, nazwisko i adres profilu; Lokalizacja i Zajęcie: tylko to jedno pole</li>
+      </ul>
+    </InfoTip>
+  );
 }
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -84,13 +102,14 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   const hasFilters = Boolean(
-    filters.q || filters.stage || filters.direction || filters.tag || filters.otw || filters.archived !== "active",
+    filters.q || filters.location || filters.occupation || filters.stage || filters.tag || filters.otw || filters.archived !== "active",
   );
 
   const active: string[] = [];
   if (filters.q) active.push(`Szukaj: ${filters.q}`);
+  if (filters.location) active.push(`Lokalizacja: ${filters.location}`);
+  if (filters.occupation) active.push(`Zajęcie: ${filters.occupation}`);
   if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
-  if (filters.direction) active.push(`Kierunek: ${DIRECTION_LABEL[filters.direction]}`);
   if (filters.tag) active.push(`Tag: ${filters.tag}`);
   if (filters.otw) active.push("Open to work");
   if (filters.archived === "only") active.push("Tylko zarchiwizowane");
@@ -118,16 +137,39 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             ))}
           </span>
         </summary>
-        <form className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3" method="get" action="/contacts">
+        {/* key z aktualnymi filtrami: po "Wyczyść" lub zmianie adresu pola formularza są tworzone od nowa (defaultValue nie nadpisuje wpisanego już tekstu) */}
+        <form
+          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.tag, filters.otw, filters.archived])}
+          className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3"
+          method="get"
+          action="/contacts"
+        >
           {filters.sort && (
             <>
               <input type="hidden" name="sort" value={filters.sort} />
               <input type="hidden" name="dir" value={filters.dir || "asc"} />
             </>
           )}
-          <div className={`${fieldWrap} flex-1 basis-64`}>
-            <Label htmlFor="q">Szukaj</Label>
-            <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko lub adres profilu" />
+          <div className={`${fieldWrap} flex-1 basis-56`}>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="q">Szukaj</Label>
+              <SearchHelp />
+            </div>
+            <Input id="q" type="search" name="q" defaultValue={filters.q} />
+          </div>
+          <div className={`${fieldWrap} flex-1 basis-48`}>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="location">Lokalizacja</Label>
+              <SearchHelp />
+            </div>
+            <Input id="location" type="search" name="location" defaultValue={filters.location} />
+          </div>
+          <div className={`${fieldWrap} flex-1 basis-48`}>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="occupation">Zajęcie</Label>
+              <SearchHelp />
+            </div>
+            <Input id="occupation" type="search" name="occupation" defaultValue={filters.occupation} />
           </div>
           <div className={fieldWrap}>
             <Label htmlFor="stage">Etap</Label>
@@ -136,17 +178,6 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
               {STAGES.map((s) => (
                 <NativeSelectOption key={s.value} value={s.value}>
                   {s.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className={fieldWrap}>
-            <Label htmlFor="direction">Kierunek</Label>
-            <NativeSelect id="direction" name="direction" defaultValue={filters.direction}>
-              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
-              {DIRECTIONS.map((d) => (
-                <NativeSelectOption key={d.value} value={d.value}>
-                  {d.label}
                 </NativeSelectOption>
               ))}
             </NativeSelect>
@@ -178,7 +209,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href={pageHref({ ...filters, q: "", stage: "", direction: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>
@@ -226,7 +257,6 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                     {c.openToWork && <Badge>OTW</Badge>}
                     {c.archived && <Badge variant="outline">zarchiwizowany</Badge>}
                   </div>
-                  {c.occupation && <div className="mt-0.5 text-xs text-muted-foreground">{c.occupation}</div>}
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {c.location && <span>{c.location} · </span>}
                     <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
@@ -234,8 +264,10 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                     </a>
                   </div>
                 </TableCell>
+                <TableCell className="min-w-48 max-w-80 whitespace-normal" title={c.occupation ?? undefined}>
+                  {c.occupation ? <span className="line-clamp-3">{c.occupation}</span> : <span className="text-muted-foreground">—</span>}
+                </TableCell>
                 <TableCell>{STAGE_LABEL[c.stage]}</TableCell>
-                <TableCell>{DIRECTION_LABEL[c.direction]}</TableCell>
                 <TableCell className="whitespace-normal">
                   <div className="flex max-w-72 flex-wrap gap-1">
                     {c.tags.slice(0, 3).map((t) => (
