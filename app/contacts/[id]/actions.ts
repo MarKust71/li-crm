@@ -4,6 +4,7 @@ import type { ArchiveReason, EventType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
+import { normalizeThreadUrl } from "@/lib/calendar-parse";
 import { addContactEvent, deleteContactEvent, setArchived, setOpenToWork, updateContactDetails } from "@/lib/contact-events";
 import { refererListQuery } from "@/lib/list-context";
 import { prisma } from "@/lib/prisma";
@@ -96,9 +97,13 @@ export async function toggleOpenToWorkAction(formData: FormData) {
 export async function updateDetailsAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
+  // adres wątku LinkedIn: puste = brak, niepoprawny = błąd (nic nie zapisujemy)
+  const threadUrl = normalizeThreadUrl(text(formData.get("threadUrl"), 500));
+  if (threadUrl === null) await done(id, "thread");
   await updateContactDetails(id, {
     occupation: text(formData.get("occupation"), 300),
     location: text(formData.get("location"), 200),
+    threadUrl: threadUrl || null,
     salutation: text(formData.get("salutation"), 100),
     email: text(formData.get("email"), 200),
     phone: text(formData.get("phone"), 50),

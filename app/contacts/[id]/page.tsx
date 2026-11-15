@@ -46,6 +46,7 @@ const ERRORS: Record<string, string> = {
   type: "Nieznany typ zdarzenia.",
   date: "Niepoprawna data.",
   reason: "Wybierz powód archiwizacji.",
+  thread: "Adres wątku musi mieć postać https://www.linkedin.com/messaging/thread/… (skopiuj go z paska adresu rozmowy na LinkedIn). Nic nie zapisano.",
   notfound: "Nie znaleziono przypomnienia (mogło zostać już zmienione lub usunięte).",
   delay: "Podaj liczbę od 1 do 3650 i jednostkę.",
   "no-bom": "Follow-up (FU) można dodać tylko po odbytym BOM.",
@@ -240,6 +241,16 @@ async function ContactCard({ params, searchParams }: Props) {
                   <dd>{contact.location}</dd>
                 </>
               )}
+              {contact.threadUrl && (
+                <>
+                  <dt>Wątek</dt>
+                  <dd>
+                    <a href={contact.threadUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                      Otwórz rozmowę ↗
+                    </a>
+                  </dd>
+                </>
+              )}
               {contact.email && (
                 <>
                   <dt>E-mail</dt>
@@ -315,6 +326,10 @@ async function ContactCard({ params, searchParams }: Props) {
                       </span>
                     </label>
                   )}
+                </div>
+                <div className={field}>
+                  <Label htmlFor="threadUrl">Wątek LinkedIn (adres rozmowy)</Label>
+                  <Input id="threadUrl" name="threadUrl" type="url" defaultValue={contact.threadUrl ?? ""} maxLength={500} />
                 </div>
                 <div className={field}>
                   <Label htmlFor="salutation">Zwrot (np. „Pani Aniu”)</Label>

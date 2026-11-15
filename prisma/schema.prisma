@@ -60,6 +60,7 @@ model Contact {
   name          String
   salutation    String?        // wołacz do szablonów wiadomości: "Pani Aniu"
   location      String?
+  threadUrl     String?        // wątek rozmowy na LinkedIn (https://www.linkedin.com/messaging/thread/…), dostępny od przyjęcia zaproszenia
   occupation    String?
   email         String?
   phone         String?
