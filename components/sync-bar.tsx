@@ -16,7 +16,7 @@ export async function SyncBar() {
   if (!(await hasAccess())) return null;
   const [s, q] = await Promise.all([getSyncSettings(), syncQueue()]);
   if (s.intervalMinutes < 0) return null;
-  const wrap = "flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-muted/60 px-4 py-2 text-sm";
+  const wrap = "flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b bg-muted/60 px-4 py-2 text-center text-sm";
   const waiting = Boolean(s.manualRequestedAt && (!s.lastRunAt || s.manualRequestedAt > s.lastRunAt));
 
   const stuck =
