@@ -155,7 +155,7 @@ export async function listContacts(f: ContactFilters) {
 // "Ostatnia aktywność" jest wartością wyliczaną (CLAUDE.md: nie przechowujemy), więc nie da się po niej
 // posortować w jednym zapytaniu Prismy. Przy kilku tysiącach kontaktów: pobierz pasujące id + ostatnie daty,
 // posortuj w pamięci (kontakty bez daty zawsze na końcu) i dopiero wtedy wczytaj bieżącą stronę.
-async function listByActivity(f: ContactFilters, where: Prisma.ContactWhereInput) {
+async function idsByActivity(f: ContactFilters, where: Prisma.ContactWhereInput) {
   const [all, lastById] = await Promise.all([
     prisma.contact.findMany({ where, select: { id: true, name: true } }),
     lastActivityFor(),
@@ -170,7 +170,12 @@ async function listByActivity(f: ContactFilters, where: Prisma.ContactWhereInput
     return a.name.localeCompare(b.name, "pl") || a.id.localeCompare(b.id);
   });
 
-  return pageOf(all.map((r) => r.id), f, lastById);
+  return { ids: all.map((r) => r.id), lastById };
+}
+
+async function listByActivity(f: ContactFilters, where: Prisma.ContactWhereInput) {
+  const { ids, lastById } = await idsByActivity(f, where);
+  return pageOf(ids, f, lastById);
 }
 
 /** Wczytuje bieżącą stronę dla już posortowanej listy id. */
@@ -197,7 +202,7 @@ async function pageOf(sortedIds: string[], f: ContactFilters, lastById?: Map<str
 
 // Zajęcie sortujemy w pamięci (jak aktywność): polska kolejność liter (np. "Ł" po "L"), a puste i znaczniki braku danych
 // zawsze na końcu, także przy sortowaniu malejącym.
-async function listByOccupation(f: ContactFilters, where: Prisma.ContactWhereInput) {
+async function idsByOccupation(f: ContactFilters, where: Prisma.ContactWhereInput) {
   const all = await prisma.contact.findMany({ where, select: { id: true, name: true, occupation: true } });
   const sign = f.dir === "desc" ? -1 : 1;
   // klucz bez początkowych znaków specjalnych (cudzysłowy, nawiasy, #, emoji), żeby nagłówki typu "[CEO]" nie lądowały przed literami
@@ -214,7 +219,51 @@ async function listByOccupation(f: ContactFilters, where: Prisma.ContactWhereInp
     }
     return a.name.localeCompare(b.name, "pl") || a.id.localeCompare(b.id);
   });
-  return pageOf(key.map((r) => r.id), f);
+  return key.map((r) => r.id);
+}
+
+async function listByOccupation(f: ContactFilters, where: Prisma.ContactWhereInput) {
+  return pageOf(await idsByOccupation(f, where), f);
+}
+
+/** Wszystkie id pasujące do filtrów w kolejności listy (do nawigacji "poprzedni / następny" na karcie kontaktu). */
+async function allIds(f: ContactFilters): Promise<string[]> {
+  const where = buildWhere(f);
+  if (f.sort === "activity") return (await idsByActivity(f, where)).ids;
+  if (f.sort === "occupation") return idsByOccupation(f, where);
+  return (await prisma.contact.findMany({ where, orderBy: orderByFor(f), select: { id: true } })).map((r) => r.id);
+}
+
+/** Sąsiedzi kontaktu na liście o danych filtrach i sortowaniu; null, gdy kontaktu nie ma na tej liście. */
+export async function contactNeighbors(f: ContactFilters, id: string) {
+  const ids = await allIds(f);
+  const index = ids.indexOf(id);
+  if (index < 0) return null;
+  return { prev: ids[index - 1] ?? null, next: ids[index + 1] ?? null, position: index + 1, total: ids.length };
+}
+
+/** Parametry listy jako zapytanie URL (to samo, co zapisuje strona listy); strona > 1 jest dopisywana. */
+export function filtersQuery(f: ContactFilters, page: number): string {
+  const p = new URLSearchParams();
+  if (f.q) p.set("q", f.q);
+  if (f.location) p.set("location", f.location);
+  if (f.occupation) p.set("occupation", f.occupation);
+  if (f.stage) p.set("stage", f.stage);
+  if (f.tag) p.set("tag", f.tag);
+  if (f.otw) p.set("otw", "1");
+  if (f.archived !== "active") p.set("archived", f.archived);
+  if (f.sort) {
+    p.set("sort", f.sort);
+    p.set("dir", f.dir || "asc");
+  }
+  if (page > 1) p.set("page", String(page));
+  return p.toString();
+}
+
+/** Kontekst listy przekazany w adresie karty (`?from=`): sprawdzony i zapisany od nowa, więc do zapytania nie trafia nic spoza znanych filtrów. */
+export function listContextFrom(raw: string | null | undefined): { filters: ContactFilters; query: string } {
+  const filters = parseFilters(Object.fromEntries(new URLSearchParams((raw ?? "").slice(0, 600))));
+  return { filters, query: filtersQuery(filters, filters.page) };
 }
 
 export async function listTagNames(): Promise<string[]> {

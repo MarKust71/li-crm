@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import {
   PAGE_SIZE,
   listContacts,
+  filtersQuery,
   listTagNames,
   parseFilters,
   type ContactFilters,
@@ -30,20 +31,7 @@ const stickyHead = "sticky top-0 z-10 bg-muted shadow-[inset_0_-1px_0_var(--bord
 const fieldWrap = "flex min-w-36 flex-col gap-1 text-xs text-muted-foreground max-sm:flex-1 max-sm:basis-36";
 
 function pageHref(f: ContactFilters, page: number): string {
-  const p = new URLSearchParams();
-  if (f.q) p.set("q", f.q);
-  if (f.location) p.set("location", f.location);
-  if (f.occupation) p.set("occupation", f.occupation);
-  if (f.stage) p.set("stage", f.stage);
-  if (f.tag) p.set("tag", f.tag);
-  if (f.otw) p.set("otw", "1");
-  if (f.archived !== "active") p.set("archived", f.archived);
-  if (f.sort) {
-    p.set("sort", f.sort);
-    p.set("dir", f.dir || "asc");
-  }
-  if (page > 1) p.set("page", String(page));
-  const qs = p.toString();
+  const qs = filtersQuery(f, page);
   return qs ? `/contacts?${qs}` : "/contacts";
 }
 
@@ -77,6 +65,12 @@ function SearchHelp() {
       </ul>
     </InfoTip>
   );
+}
+
+/** Link do karty z kontekstem listy (filtry, sortowanie, strona): karta wraca do tej listy i pozwala przejść do sąsiednich kontaktów. */
+function cardHref(id: string, f: ContactFilters, page: number): string {
+  const qs = filtersQuery(f, page);
+  return qs ? `/contacts/${id}?from=${encodeURIComponent(qs)}` : `/contacts/${id}`;
 }
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -251,7 +245,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
               <TableRow key={c.id} className={c.archived ? "opacity-60" : undefined}>
                 <TableCell className="whitespace-normal">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Link href={`/contacts/${c.id}`} className="font-semibold hover:underline">
+                    <Link href={cardHref(c.id, filters, page)} className="font-semibold hover:underline">
                       {c.name}
                     </Link>
                     {c.openToWork && <Badge>OTW</Badge>}

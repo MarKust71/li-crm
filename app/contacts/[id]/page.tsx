@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { AddReminderForm, ReminderItem } from "@/components/reminders";
-import { getContact } from "@/lib/contacts";
+import { contactNeighbors, getContact, listContextFrom, type ContactFilters } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
 import { listContactReminders } from "@/lib/reminders";
 import {
@@ -70,15 +70,71 @@ export default function ContactPage({ params, searchParams }: Props) {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <Link href="/contacts" className="text-sm text-muted-foreground underline">
-          ← Kontakty
-        </Link>
+        <Suspense
+          fallback={
+            <Link href="/contacts" className="text-sm text-muted-foreground underline">
+              ← Kontakty
+            </Link>
+          }
+        >
+          <ListNav params={params} searchParams={searchParams} />
+        </Suspense>
         <SiteNav current="contacts" />
       </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakt…</p>}>
         <ContactCard params={params} searchParams={searchParams} />
       </Suspense>
     </main>
+  );
+}
+
+/** Powrót do listy z zachowanymi filtrami i sortowaniem oraz przejście do poprzedniego / następnego kontaktu z tej listy. */
+async function ListNav({ params, searchParams }: Props) {
+  const { id } = await params;
+  const sp = await searchParams;
+  const from = Array.isArray(sp.from) ? sp.from[0] : sp.from;
+  const { filters, query } = listContextFrom(from);
+  const back = query ? `/contacts?${query}` : "/contacts";
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <Link href={back} className="text-sm text-muted-foreground underline">
+        ← Kontakty
+      </Link>
+      {from && (
+        <Suspense fallback={null}>
+          <Neighbors id={id} filters={filters} query={query} />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+async function Neighbors({ id, filters, query }: { id: string; filters: ContactFilters; query: string }) {
+  const n = await contactNeighbors(filters, id);
+  if (!n) return null;
+  const href = (to: string) => `/contacts/${to}?from=${encodeURIComponent(query)}`;
+  const link = "rounded-md border px-2 py-0.5 text-sm hover:bg-muted";
+  const off = "rounded-md border px-2 py-0.5 text-sm text-muted-foreground/50";
+  return (
+    <nav className="flex items-center gap-2" aria-label="Kontakty z listy">
+      {n.prev ? (
+        <Link href={href(n.prev)} className={link} rel="prev" title="Poprzedni kontakt z listy">
+          ← Poprzedni
+        </Link>
+      ) : (
+        <span className={off}>← Poprzedni</span>
+      )}
+      <span className="text-xs tabular-nums text-muted-foreground" title="Miejsce na liście o bieżących filtrach">
+        {n.position.toLocaleString("pl-PL")} z {n.total.toLocaleString("pl-PL")}
+      </span>
+      {n.next ? (
+        <Link href={href(n.next)} className={link} rel="next" title="Następny kontakt z listy">
+          Następny →
+        </Link>
+      ) : (
+        <span className={off}>Następny →</span>
+      )}
+    </nav>
   );
 }
 
@@ -207,6 +263,10 @@ async function ContactCard({ params, searchParams }: Props) {
               <summary className={summary}>Edytuj dane</summary>
               <form action={updateDetailsAction} className={form}>
                 <input type="hidden" name="id" value={contact.id} />
+                <div className={field}>
+                  <Label htmlFor="occupation">Zajęcie</Label>
+                  <Input id="occupation" name="occupation" defaultValue={contact.occupation ?? ""} maxLength={300} />
+                </div>
                 <div className={field}>
                   <Label htmlFor="salutation">Zwrot (np. „Pani Aniu”)</Label>
                   <Input id="salutation" name="salutation" defaultValue={contact.salutation ?? ""} maxLength={100} />
