@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { SubmitButton } from "@/components/submit-button";
+import { InviteMessageField } from "@/components/invite-message-field";
 import { SiteNav } from "@/components/site-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -393,7 +394,11 @@ async function ContactCard({ params, searchParams }: Props) {
               </div>
               <div className={field}>
                 <Label htmlFor="next-message">Treść wiadomości (opcjonalnie)</Label>
-                <Textarea id="next-message" name="message" rows={3} maxLength={5000} />
+                {steps[0] === "INVITE_SENT" ? (
+                  <InviteMessageField salutation={contact.salutation} />
+                ) : (
+                  <Textarea id="next-message" name="message" rows={3} maxLength={5000} />
+                )}
               </div>
               {(steps.includes("BOM_SCHEDULED") || steps.includes("FOLLOW_UP")) && (
                 <div className={field}>
