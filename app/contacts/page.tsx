@@ -96,7 +96,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   const hasFilters = Boolean(
-    filters.q || filters.location || filters.occupation || filters.stage || filters.tag || filters.otw || filters.archived !== "active",
+    filters.q || filters.location || filters.occupation || filters.stage || filters.tag || filters.otw || filters.thread || filters.archived !== "active",
   );
 
   const active: string[] = [];
@@ -106,6 +106,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
   if (filters.tag) active.push(`Tag: ${filters.tag}`);
   if (filters.otw) active.push("Open to work");
+  if (filters.thread) active.push(filters.thread === "with" ? "Z wątkiem" : "Bez wątku");
   if (filters.archived === "only") active.push("Tylko zarchiwizowane");
   if (filters.archived === "all") active.push("Z zarchiwizowanymi");
 
@@ -133,7 +134,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
         </summary>
         {/* key z aktualnymi filtrami: po "Wyczyść" lub zmianie adresu pola formularza są tworzone od nowa (defaultValue nie nadpisuje wpisanego już tekstu) */}
         <form
-          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.tag, filters.otw, filters.archived])}
+          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.tag, filters.otw, filters.thread, filters.archived])}
           className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3"
           method="get"
           action="/contacts"
@@ -195,6 +196,14 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
               <NativeSelectOption value="all">Wszystkie</NativeSelectOption>
             </NativeSelect>
           </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="thread">Wątek</Label>
+            <NativeSelect id="thread" name="thread" defaultValue={filters.thread}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              <NativeSelectOption value="with">Z wątkiem</NativeSelectOption>
+              <NativeSelectOption value="without">Bez wątku</NativeSelectOption>
+            </NativeSelect>
+          </div>
           <Label className="h-8 gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} className="size-4 accent-primary" />
             Open to work
@@ -203,7 +212,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", tag: "", otw: false, thread: "", archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>

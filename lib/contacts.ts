@@ -19,6 +19,8 @@ export type ContactFilters = {
   stage: Stage | "";
   tag: string;
   otw: boolean;
+  /** Wątek LinkedIn: tylko kontakty z zapisanym wątkiem / tylko bez niego. */
+  thread: "" | "with" | "without";
   archived: ArchivedFilter;
   /** Pusty = kolejność dodania ("naturalna"), czyli createdAt, id. */
   sort: SortKey | "";
@@ -44,6 +46,7 @@ export function parseFilters(params: RawParams): ContactFilters {
     stage: STAGES.some((s) => s.value === stage) ? (stage as Stage) : "",
     tag: first(params.tag).slice(0, 200),
     otw: first(params.otw) === "1",
+    thread: first(params.thread) === "with" ? "with" : first(params.thread) === "without" ? "without" : "",
     archived: archived === "only" || archived === "all" ? archived : "active",
     sort: validSort ? (sort as SortKey) : "",
     dir: validSort ? (first(params.dir) === "desc" ? "desc" : "asc") : "",
@@ -67,6 +70,8 @@ function buildWhere(f: ContactFilters): Prisma.ContactWhereInput {
   if (f.stage) and.push({ stage: f.stage });
   if (f.tag) and.push({ tags: { some: { tag: { name: f.tag } } } });
   if (f.otw) and.push({ openToWork: true });
+  if (f.thread === "with") and.push({ threadUrl: { not: null } });
+  if (f.thread === "without") and.push({ threadUrl: null });
   if (f.archived === "active") and.push({ archived: false });
   if (f.archived === "only") and.push({ archived: true });
   return and.length ? { AND: and } : {};
@@ -260,6 +265,7 @@ export function filtersQuery(f: ContactFilters, page: number): string {
   if (f.stage) p.set("stage", f.stage);
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
+  if (f.thread) p.set("thread", f.thread);
   if (f.archived !== "active") p.set("archived", f.archived);
   if (f.sort) {
     p.set("sort", f.sort);

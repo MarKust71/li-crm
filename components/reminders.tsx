@@ -174,7 +174,7 @@ export function AddReminderForm({ contactId, back }: { contactId: string; back: 
           <Label htmlFor={`nt-${contactId}`}>Notatka (np. „umówić BP”, „AYO?”)</Label>
           <Textarea id={`nt-${contactId}`} name="note" rows={2} maxLength={2000} />
         </div>
-        <div className="flex flex-wrap gap-2 sm:col-span-2">
+        <div className="flex flex-wrap justify-end gap-2 sm:col-span-2">
           <Button type="submit" name="kind" value="REMINDER">
             Dodaj przypomnienie
           </Button>

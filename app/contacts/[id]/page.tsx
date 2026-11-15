@@ -365,7 +365,7 @@ async function ContactCard({ params, searchParams }: Props) {
                   <Label htmlFor="info">Notatki</Label>
                   <Textarea id="info" name="info" rows={5} defaultValue={contact.info ?? ""} maxLength={10000} />
                 </div>
-                <Button type="submit" variant="outline" className="self-start">
+                <Button type="submit" variant="outline" className="self-end">
                   Zapisz
                 </Button>
               </form>
@@ -376,7 +376,7 @@ async function ContactCard({ params, searchParams }: Props) {
               {contact.archived ? (
                 <form action={unarchiveAction} className={form}>
                   <input type="hidden" name="id" value={contact.id} />
-                  <Button type="submit" variant="outline" className="self-start">
+                  <Button type="submit" variant="outline" className="self-end">
                     Przywróć z archiwum
                   </Button>
                 </form>
@@ -406,7 +406,7 @@ async function ContactCard({ params, searchParams }: Props) {
                       Uwaga: umówione spotkanie ({meetings.map((m) => `${m.type === "FOLLOW_UP" ? "FU" : "BOM"} ${dateTimeFmt.format(m.scheduledAt)}`).join(", ")}) zostaje w kalendarzu. Jeśli się nie odbędzie, odwołaj je w historii kontaktu.
                     </p>
                   )}
-                  <Button type="submit" variant="outline" className="self-start">
+                  <Button type="submit" variant="outline" className="self-end">
                     Archiwizuj
                   </Button>
                 </form>
@@ -441,7 +441,7 @@ async function ContactCard({ params, searchParams }: Props) {
                 </div>
               )}
               {steps.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   {steps.map((t, i) => (
                     <Button key={t} type="submit" name="type" value={t} variant={i === 0 ? "default" : "outline"}>
                       {EVENT_LABEL[t]}
@@ -481,7 +481,7 @@ async function ContactCard({ params, searchParams }: Props) {
                   <Label htmlFor="other-scheduled">Termin spotkania (wymagany dla „BOM umówiony” i „Follow-up”)</Label>
                   <Input id="other-scheduled" type="datetime-local" name="scheduledAt" />
                 </div>
-                <Button type="submit" variant="outline" className="self-start">
+                <Button type="submit" variant="outline" className="self-end">
                   Dodaj
                 </Button>
               </form>
