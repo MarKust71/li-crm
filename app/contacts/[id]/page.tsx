@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, cache } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { StepMessageField } from "@/components/step-message-field";
@@ -39,6 +39,9 @@ import {
   unarchiveAction,
   updateDetailsAction,
 } from "./actions";
+
+// jedno zapytanie o kontakt na żądanie, choć korzystają z niego dwa komponenty (nagłówek i karta)
+const getContactCached = cache(getContact);
 
 export const metadata: Metadata = { title: "Kontakt · li-crm" };
 
@@ -80,18 +83,25 @@ type Props = {
 
 export default function ContactPage({ params, searchParams }: Props) {
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <Suspense
-          fallback={
-            <Link href="/contacts" className="text-sm text-muted-foreground underline">
-              ← Kontakty
-            </Link>
-          }
-        >
-          <ListNav params={params} searchParams={searchParams} />
+    <main className="mx-auto w-full max-w-5xl px-4 pb-12">
+      {/* Nawigacja i nagłówek kontaktu zostają na wierzchu przy przewijaniu (od szerokości md; na telefonie zajmowałyby za dużo ekranu).
+          Paski czasu i synchronizacji są w układzie strony, więc znikają przy przewijaniu i widać je tylko na samej górze. */}
+      <div className="z-30 -mx-4 mb-4 border-b bg-background px-4 pb-3 pt-6 md:sticky md:top-0">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <Suspense
+            fallback={
+              <Link href="/contacts" className="text-sm text-muted-foreground underline">
+                ← Kontakty
+              </Link>
+            }
+          >
+            <ListNav params={params} searchParams={searchParams} />
+          </Suspense>
+          <SiteNav current="contacts" />
+        </div>
+        <Suspense fallback={<div className="h-14" />}>
+          <ContactHeader params={params} />
         </Suspense>
-        <SiteNav current="contacts" />
       </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakt…</p>}>
         <ContactCard params={params} searchParams={searchParams} />
@@ -150,25 +160,13 @@ async function Neighbors({ id, filters, query }: { id: string; filters: ContactF
   );
 }
 
-async function ContactCard({ params, searchParams }: Props) {
+/** Nagłówek karty (imię i nazwisko, zajęcie, etap, OTW): przyklejony do góry razem z nawigacją, więc zawsze pod ręką przy przewijaniu. */
+async function ContactHeader({ params }: Pick<Props, "params">) {
   const { id } = await params;
-  const sp = await searchParams;
-  const contact = await getContact(id);
-  if (!contact) notFound();
-  const [reminders, sameLocation] = await Promise.all([listContactReminders(id), countSameLocation(id, contact.location)]);
-
-  const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
-  const error = errorKey ? ERRORS[errorKey] : undefined;
-  const today = todayWarsaw();
-  const openReminders = reminders.filter((r) => r.status === "OPEN").length;
-  const meetings = upcomingMeetings(contact.events, new Date());
-  const archiveInfo = [contact.archiveReason ? ARCHIVE_REASON_LABEL[contact.archiveReason] : null, contact.archivedAt ? dateFmt.format(contact.archivedAt) : null].filter(Boolean).join(", ");
-  const steps = nextSteps(contact.stage, contact.direction);
-  const tags = contact.tags.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b, "pl"));
-
+  const contact = await getContactCached(id);
+  if (!contact) return null;
   return (
-    <>
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="break-words text-2xl font-semibold">{contact.name}</h1>
           {contact.occupation && <p className="mt-1 text-[0.95rem] text-muted-foreground">{contact.occupation}</p>}
@@ -193,7 +191,27 @@ async function ContactCard({ params, searchParams }: Props) {
           </form>
         </div>
       </header>
+  );
+}
 
+async function ContactCard({ params, searchParams }: Props) {
+  const { id } = await params;
+  const sp = await searchParams;
+  const contact = await getContactCached(id);
+  if (!contact) notFound();
+  const [reminders, sameLocation] = await Promise.all([listContactReminders(id), countSameLocation(id, contact.location)]);
+
+  const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
+  const error = errorKey ? ERRORS[errorKey] : undefined;
+  const today = todayWarsaw();
+  const openReminders = reminders.filter((r) => r.status === "OPEN").length;
+  const meetings = upcomingMeetings(contact.events, new Date());
+  const archiveInfo = [contact.archiveReason ? ARCHIVE_REASON_LABEL[contact.archiveReason] : null, contact.archivedAt ? dateFmt.format(contact.archivedAt) : null].filter(Boolean).join(", ");
+  const steps = nextSteps(contact.stage, contact.direction);
+  const tags = contact.tags.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b, "pl"));
+
+  return (
+    <>
       {contact.archived && (
         <Alert className="mb-4">
           <AlertDescription>
