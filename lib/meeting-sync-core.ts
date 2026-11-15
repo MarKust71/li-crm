@@ -67,7 +67,7 @@ export type MeetingForOp = {
   calendarTitle: string | null;
   googleEventId: string | null;
   message: string | null;
-  contact: { name: string; profileUrl: string; email: string | null; phone: string | null };
+  contact: { name: string; profileUrl: string; threadUrl?: string | null; email: string | null; phone: string | null };
 };
 
 export function planMeetingOp(m: MeetingForOp, outcome: Outcome): SyncOp | null {
@@ -88,7 +88,7 @@ export function planMeetingOp(m: MeetingForOp, outcome: Outcome): SyncOp | null 
   };
   if (canceled) return m.googleEventId ? { ...base, op: "delete", eventId: m.googleEventId, description: null } : null;
   if (!m.googleEventId) {
-    return { ...base, op: "create", eventId: null, description: buildDescription({ reminderId: m.id, profileUrl: m.contact.profileUrl, note: m.message, email: m.contact.email, phone: m.contact.phone }) };
+    return { ...base, op: "create", eventId: null, description: buildDescription({ reminderId: m.id, profileUrl: m.contact.profileUrl, threadUrl: m.contact.threadUrl, note: m.message, email: m.contact.email, phone: m.contact.phone }) };
   }
   return { ...base, op: "update", eventId: m.googleEventId, description: null };
 }
