@@ -32,6 +32,8 @@ const fieldWrap = "flex min-w-36 flex-col gap-1 text-xs text-muted-foreground ma
 function pageHref(f: ContactFilters, page: number): string {
   const p = new URLSearchParams();
   if (f.q) p.set("q", f.q);
+  if (f.location) p.set("location", f.location);
+  if (f.occupation) p.set("occupation", f.occupation);
   if (f.stage) p.set("stage", f.stage);
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
@@ -61,6 +63,22 @@ function sortHref(f: ContactFilters, key: SortKey): string {
   return pageHref({ ...f, sort: "", dir: "" }, 1);
 }
 
+/** Podpowiedź (i) przy polach tekstowych: ta sama składnia we wszystkich trzech. */
+function SearchHelp() {
+  return (
+    <InfoTip label="Jak działa wyszukiwanie">
+      <p className="mb-1 font-medium">Pola Szukaj, Lokalizacja i Zajęcie mają tę samą składnię, a ich warunki łączy ORAZ (każde kolejne pole zawęża wynik).</p>
+      <ul className="list-disc space-y-0.5 pl-4">
+        <li>spacja = LUB: <code>dolnośląskie BR</code></li>
+        <li>+ = ORAZ: <code>księgowa+BR</code></li>
+        <li>cudzysłów = dokładny ciąg: <code>&quot;obsługa klienta&quot;</code></li>
+        <li>łączenie: <code>a+b c</code> to (a ORAZ b) LUB c</li>
+        <li>Szukaj: imię, nazwisko i adres profilu; Lokalizacja i Zajęcie: tylko to jedno pole</li>
+      </ul>
+    </InfoTip>
+  );
+}
+
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 // Dane zależą od żądania (searchParams, baza), więc muszą być w <Suspense> (cacheComponents).
@@ -84,11 +102,13 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   const hasFilters = Boolean(
-    filters.q || filters.stage || filters.tag || filters.otw || filters.archived !== "active",
+    filters.q || filters.location || filters.occupation || filters.stage || filters.tag || filters.otw || filters.archived !== "active",
   );
 
   const active: string[] = [];
   if (filters.q) active.push(`Szukaj: ${filters.q}`);
+  if (filters.location) active.push(`Lokalizacja: ${filters.location}`);
+  if (filters.occupation) active.push(`Zajęcie: ${filters.occupation}`);
   if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
   if (filters.tag) active.push(`Tag: ${filters.tag}`);
   if (filters.otw) active.push("Open to work");
@@ -117,27 +137,39 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             ))}
           </span>
         </summary>
-        <form className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3" method="get" action="/contacts">
+        {/* key z aktualnymi filtrami: po "Wyczyść" lub zmianie adresu pola formularza są tworzone od nowa (defaultValue nie nadpisuje wpisanego już tekstu) */}
+        <form
+          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.tag, filters.otw, filters.archived])}
+          className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3"
+          method="get"
+          action="/contacts"
+        >
           {filters.sort && (
             <>
               <input type="hidden" name="sort" value={filters.sort} />
               <input type="hidden" name="dir" value={filters.dir || "asc"} />
             </>
           )}
-          <div className={`${fieldWrap} flex-1 basis-64`}>
+          <div className={`${fieldWrap} flex-1 basis-56`}>
             <div className="flex items-center gap-1.5">
               <Label htmlFor="q">Szukaj</Label>
-              <InfoTip label="Jak działa wyszukiwanie">
-                <p className="mb-1 font-medium">Każde słowo jest szukane w imieniu i nazwisku, zajęciu, lokalizacji i adresie profilu.</p>
-                <ul className="list-disc space-y-0.5 pl-4">
-                  <li>spacja = LUB: <code>dolnośląskie BR</code></li>
-                  <li>+ = ORAZ: <code>dolnośląskie+BR</code></li>
-                  <li>cudzysłów = dokładny ciąg: <code>&quot;obsługa klienta&quot;</code></li>
-                  <li>łączenie: <code>dolnośląskie+BR księgowa</code> to (dolnośląskie ORAZ BR) LUB księgowa</li>
-                </ul>
-              </InfoTip>
+              <SearchHelp />
             </div>
-            <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko, zajęcie, lokalizacja lub adres profilu" />
+            <Input id="q" type="search" name="q" defaultValue={filters.q} />
+          </div>
+          <div className={`${fieldWrap} flex-1 basis-48`}>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="location">Lokalizacja</Label>
+              <SearchHelp />
+            </div>
+            <Input id="location" type="search" name="location" defaultValue={filters.location} />
+          </div>
+          <div className={`${fieldWrap} flex-1 basis-48`}>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="occupation">Zajęcie</Label>
+              <SearchHelp />
+            </div>
+            <Input id="occupation" type="search" name="occupation" defaultValue={filters.occupation} />
           </div>
           <div className={fieldWrap}>
             <Label htmlFor="stage">Etap</Label>
@@ -177,7 +209,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href={pageHref({ ...filters, q: "", stage: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", tag: "", otw: false, archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>

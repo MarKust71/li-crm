@@ -12,7 +12,10 @@ export type SortKey = (typeof SORT_KEYS)[number];
 export type SortDir = "asc" | "desc";
 
 export type ContactFilters = {
+  /** Imię, nazwisko i adres profilu. */
   q: string;
+  location: string;
+  occupation: string;
   stage: Stage | "";
   tag: string;
   otw: boolean;
@@ -36,6 +39,8 @@ export function parseFilters(params: RawParams): ContactFilters {
   const validSort = SORT_KEYS.includes(sort as SortKey);
   return {
     q: first(params.q).trim().slice(0, 100),
+    location: first(params.location).trim().slice(0, 100),
+    occupation: first(params.occupation).trim().slice(0, 100),
     stage: STAGES.some((s) => s.value === stage) ? (stage as Stage) : "",
     tag: first(params.tag).slice(0, 200),
     otw: first(params.otw) === "1",
@@ -48,17 +53,15 @@ export function parseFilters(params: RawParams): ContactFilters {
 
 function buildWhere(f: ContactFilters): Prisma.ContactWhereInput {
   const and: Prisma.ContactWhereInput[] = [];
-  const groups = parseSearch(f.q);
-  if (groups.length) {
-    // grupy łączy LUB, słowa w grupie ORAZ; słowo pasuje, gdy jest w którymkolwiek z pól
-    const term = (t: string): Prisma.ContactWhereInput => ({
-      OR: [
-        { name: { contains: t, mode: "insensitive" } },
-        { occupation: { contains: t, mode: "insensitive" } },
-        { location: { contains: t, mode: "insensitive" } },
-        { profileUrl: { contains: t, mode: "insensitive" } },
-      ],
-    });
+  // trzy pola tekstowe o tej samej składni (lib/contacts-search.ts), połączone ORAZ: kolejne pola zawężają wynik
+  for (const [text, fields] of [
+    [f.q, ["name", "profileUrl"]],
+    [f.location, ["location"]],
+    [f.occupation, ["occupation"]],
+  ] as const) {
+    const groups = parseSearch(text);
+    if (!groups.length) continue;
+    const term = (t: string): Prisma.ContactWhereInput => ({ OR: fields.map((k) => ({ [k]: { contains: t, mode: "insensitive" } })) });
     and.push({ OR: groups.map((g) => ({ AND: g.map(term) })) });
   }
   if (f.stage) and.push({ stage: f.stage });
