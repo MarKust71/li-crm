@@ -253,9 +253,16 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {c.location && <span>{c.location} · </span>}
-                    <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" className="underline">
-                      LinkedIn ↗
-                    </a>
+                    {/* kontakt z zapisanym wątkiem ma link „Rozmowa” zamiast „Profil”: od razu widać, którym brakuje wątku */}
+                    {c.threadUrl ? (
+                      <a href={c.threadUrl} target="_blank" rel="noopener noreferrer" className="underline" title="Otwórz rozmowę na LinkedIn">
+                        Rozmowa ↗
+                      </a>
+                    ) : (
+                      <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" className="underline" title="Otwórz profil na LinkedIn">
+                        Profil ↗
+                      </a>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="min-w-48 max-w-80 whitespace-normal" title={c.occupation ?? undefined}>
