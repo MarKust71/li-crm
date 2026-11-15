@@ -76,3 +76,11 @@ export async function saveTimeSettingsAction(formData: FormData) {
   revalidatePath("/settings");
   redirect(ok ? "/settings?timeSaved=1" : "/settings?error=time");
 }
+
+/** "Synchronizuj kalendarz" z paska u góry strony: jak w Ustawieniach, ale bez przekierowania (zostajesz na bieżącej stronie). */
+export async function syncNowFromBarAction() {
+  await requireAccess();
+  await requestManualSync();
+  await logActivity({ source: "UI", action: "settings.sync_now", summary: "Zażądano synchronizacji kalendarza (z paska)" });
+  revalidatePath("/", "layout");
+}
