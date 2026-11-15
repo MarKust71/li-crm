@@ -34,8 +34,9 @@ export function buildSummary(calendarTitle: string, status: ReminderStatus): str
   return `${status === "DONE" ? DONE_PREFIX : ""}${calendarTitle}`;
 }
 
-export function buildDescription(input: { reminderId: string; profileUrl: string; note: string | null; email: string | null; phone: string | null }): string {
-  return [input.profileUrl, input.note, input.email, input.phone, `${ID_MARKER}${input.reminderId}`].filter(Boolean).join("\n\n");
+export function buildDescription(input: { reminderId: string; profileUrl: string; threadUrl?: string | null; note: string | null; email: string | null; phone: string | null }): string {
+  // opis powstaje tylko przy tworzeniu wydarzenia; wątek LinkedIn (jeśli kontakt go ma) jest zaraz po profilu
+  return [input.profileUrl, input.threadUrl ? `Wątek: ${input.threadUrl}` : null, input.note, input.email, input.phone, `${ID_MARKER}${input.reminderId}`].filter(Boolean).join("\n\n");
 }
 
 export type EventTimes = { allDay: boolean; startDate: string; endDate: string; startDateTime: string; endDateTime: string };
@@ -79,7 +80,7 @@ export type ReminderForOp = {
   googleEventId: string | null;
   note: string | null;
   kind: ReminderKind;
-  contact: { name: string; profileUrl: string; email: string | null; phone: string | null };
+  contact: { name: string; profileUrl: string; threadUrl?: string | null; email: string | null; phone: string | null };
 };
 
 /** Jaką operację wykonać w kalendarzu dla przypomnienia z oczekującą zmianą; null = nic do wysłania. */
@@ -94,7 +95,7 @@ export function planOp(r: ReminderForOp): SyncOp | null {
       ...base,
       op: "create",
       eventId: null,
-      description: buildDescription({ reminderId: r.id, profileUrl: r.contact.profileUrl, note: r.note, email: r.contact.email, phone: r.contact.phone }),
+      description: buildDescription({ reminderId: r.id, profileUrl: r.contact.profileUrl, threadUrl: r.contact.threadUrl, note: r.note, email: r.contact.email, phone: r.contact.phone }),
     };
   }
   return { ...base, op: "update", eventId: r.googleEventId, description: null };

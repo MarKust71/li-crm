@@ -36,7 +36,7 @@ export async function getPending(): Promise<{ ops: PendingOp[]; pullCursor: stri
     where: retryable,
     orderBy: { updatedAt: "asc" },
     take: BATCH,
-    include: { contact: { select: { name: true, profileUrl: true, email: true, phone: true } } },
+    include: { contact: { select: { name: true, profileUrl: true, threadUrl: true, email: true, phone: true } } },
   });
   const nothingToDo: string[] = [];
   for (const r of rows) {
@@ -51,7 +51,7 @@ export async function getPending(): Promise<{ ops: PendingOp[]; pullCursor: stri
     where: { type: { in: [...MEETING_TYPES] }, scheduledAt: { not: null }, ...retryable },
     orderBy: { updatedAt: "asc" },
     take: BATCH,
-    include: { contact: { select: { name: true, profileUrl: true, email: true, phone: true } } },
+    include: { contact: { select: { name: true, profileUrl: true, threadUrl: true, email: true, phone: true } } },
   });
   if (meetings.length) {
     const hist = await prisma.contactEvent.findMany({
