@@ -78,6 +78,7 @@ const SELECT = {
   occupation: true,
   location: true,
   profileUrl: true,
+  threadUrl: true,
   stage: true,
   direction: true,
   openToWork: true,
