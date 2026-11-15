@@ -28,7 +28,7 @@ export async function TimeBar() {
   const { bar, running } = await getTimeBar(now, { idle: cookieNum(jar.get("li_snooze_idle")?.value), start: cookieNum(jar.get("li_snooze_start")?.value) });
   if (!bar) return null;
 
-  const wrap = "flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-muted/60 px-4 py-2 text-sm";
+  const wrap = "flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-b bg-muted/60 px-4 py-2 text-center text-sm";
 
   if (bar.kind === "idle" && running) {
     const noActivity = bar.lastActivityAt.getTime() - bar.startedAt.getTime() < 60_000;
@@ -38,7 +38,7 @@ export async function TimeBar() {
           Sesja czasu pracy trwa <Elapsed startedAt={running.startedAt.getTime()} className="font-mono tabular-nums" />
           {running.activityType ? ` (${running.activityType.name})` : ""}, a ostatnia aktywność w aplikacji była {noActivity ? "przy starcie sesji" : `o ${when(bar.lastActivityAt, now)}`}. Zakończyć?
         </span>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           {!noActivity && (
             <form action={stopFromBarAction}>
               <input type="hidden" name="id" value={running.id} />
@@ -61,7 +61,7 @@ export async function TimeBar() {
     return (
       <div role="status" className={wrap}>
         <span>Nie rejestrujesz czasu pracy, a w aplikacji coś się dzieje (od {when(bar.from, now)}).</span>
-        <form action={startFromBarAction} className="flex flex-wrap items-center gap-2">
+        <form action={startFromBarAction} className="flex flex-wrap items-center justify-center gap-2">
           <input type="hidden" name="from" value={bar.from.toISOString()} />
           <NativeSelect name="activityId" defaultValue={activities[0]?.id ?? ""} aria-label="Czynność" size="sm">
             <NativeSelectOption value="">(bez czynności)</NativeSelectOption>

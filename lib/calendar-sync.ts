@@ -385,3 +385,20 @@ export async function syncStatus() {
   counts.PENDING = (counts.PENDING ?? 0) + stones;
   return { settings: s, counts };
 }
+
+/**
+ * Kolejka zmian do wysłania do kalendarza: `pending` = czeka lub ponawia (to, co zabierze najbliższa synchronizacja),
+ * `stuck` = błąd po wyczerpaniu prób (nie jest już ponawiane, wymaga uwagi w Ustawieniach).
+ */
+export async function syncQueue() {
+  const meeting = { type: { in: [...MEETING_TYPES] }, scheduledAt: { not: null } };
+  const [r1, e1, t1, r2, e2, t2] = await Promise.all([
+    prisma.reminder.count({ where: retryable }),
+    prisma.contactEvent.count({ where: { ...meeting, ...retryable } }),
+    prisma.calendarTombstone.count({ where: retryable }),
+    prisma.reminder.count({ where: { syncState: "ERROR", syncAttempts: { gte: MAX_ATTEMPTS } } }),
+    prisma.contactEvent.count({ where: { ...meeting, syncState: "ERROR", syncAttempts: { gte: MAX_ATTEMPTS } } }),
+    prisma.calendarTombstone.count({ where: { syncState: "ERROR", syncAttempts: { gte: MAX_ATTEMPTS } } }),
+  ]);
+  return { pending: r1 + e1 + t1, stuck: r2 + e2 + t2 };
+}

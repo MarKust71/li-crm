@@ -28,6 +28,17 @@ export function extractThreadUrl(description: string): string | null {
   return THREAD_RE.exec(description.replace(/&amp;/g, "&"))?.[0] ?? null;
 }
 
+/**
+ * Adres wątku z pola formularza: tylko https://www.linkedin.com/messaging/thread/<id>/ (bez parametrów i fragmentu; ogon z przekierowania Google "/&sa=D&…" z opisów wydarzeń też jest obcinany).
+ * Zwraca: znormalizowany adres, "" dla pustego pola, null dla niepoprawnego.
+ */
+export function normalizeThreadUrl(input: string | null | undefined): string | "" | null {
+  const t = (input ?? "").trim();
+  if (!t) return "";
+  const m = /^https?:\/\/(?:www\.)?linkedin\.com\/messaging\/thread\/([A-Za-z0-9_\-=%]+)\/?(?:[?#&].*)?$/i.exec(t);
+  return m ? `https://www.linkedin.com/messaging/thread/${m[1]}/` : null;
+}
+
 function plainLines(description: string): string[] {
   return description
     .replace(/<br\s*\/?>|<\/p>|<\/div>/gi, "\n")

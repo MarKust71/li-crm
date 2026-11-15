@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";
+import { SyncBar } from "@/components/sync-bar";
 import { TimeBar } from "@/components/time-bar";
 import "./globals.css";
 
@@ -26,6 +27,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <Suspense fallback={null}>
           <TimeBar />
+        </Suspense>
+        <Suspense fallback={null}>
+          <SyncBar />
         </Suspense>
         {children}
         <Analytics />
