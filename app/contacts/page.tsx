@@ -10,6 +10,7 @@ import {
   type ContactFilters,
   type SortKey,
 } from "@/lib/contacts";
+import { InfoTip } from "@/components/info-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SiteNav } from "@/components/site-nav";
@@ -124,7 +125,18 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             </>
           )}
           <div className={`${fieldWrap} flex-1 basis-64`}>
-            <Label htmlFor="q">Szukaj</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="q">Szukaj</Label>
+              <InfoTip label="Jak działa wyszukiwanie">
+                <p className="mb-1 font-medium">Każde słowo jest szukane w imieniu i nazwisku, zajęciu, lokalizacji i adresie profilu.</p>
+                <ul className="list-disc space-y-0.5 pl-4">
+                  <li>spacja = LUB: <code>dolnośląskie BR</code></li>
+                  <li>+ = ORAZ: <code>dolnośląskie+BR</code></li>
+                  <li>cudzysłów = dokładny ciąg: <code>&quot;obsługa klienta&quot;</code></li>
+                  <li>łączenie: <code>dolnośląskie+BR księgowa</code> to (dolnośląskie ORAZ BR) LUB księgowa</li>
+                </ul>
+              </InfoTip>
+            </div>
             <Input id="q" type="search" name="q" defaultValue={filters.q} placeholder="Imię, nazwisko, zajęcie, lokalizacja lub adres profilu" />
           </div>
           <div className={fieldWrap}>

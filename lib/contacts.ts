@@ -1,5 +1,6 @@
 import type { Prisma, Stage } from "@prisma/client";
 import { prisma } from "./prisma";
+import { parseSearch } from "./contacts-search";
 import { STAGES } from "./labels";
 
 export const PAGE_SIZE = 50;
@@ -47,15 +48,18 @@ export function parseFilters(params: RawParams): ContactFilters {
 
 function buildWhere(f: ContactFilters): Prisma.ContactWhereInput {
   const and: Prisma.ContactWhereInput[] = [];
-  if (f.q) {
-    and.push({
+  const groups = parseSearch(f.q);
+  if (groups.length) {
+    // grupy łączy LUB, słowa w grupie ORAZ; słowo pasuje, gdy jest w którymkolwiek z pól
+    const term = (t: string): Prisma.ContactWhereInput => ({
       OR: [
-        { name: { contains: f.q, mode: "insensitive" } },
-        { occupation: { contains: f.q, mode: "insensitive" } },
-        { location: { contains: f.q, mode: "insensitive" } },
-        { profileUrl: { contains: f.q, mode: "insensitive" } },
+        { name: { contains: t, mode: "insensitive" } },
+        { occupation: { contains: t, mode: "insensitive" } },
+        { location: { contains: t, mode: "insensitive" } },
+        { profileUrl: { contains: t, mode: "insensitive" } },
       ],
     });
+    and.push({ OR: groups.map((g) => ({ AND: g.map(term) })) });
   }
   if (f.stage) and.push({ stage: f.stage });
   if (f.tag) and.push({ tags: { some: { tag: { name: f.tag } } } });
