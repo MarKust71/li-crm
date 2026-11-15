@@ -35,3 +35,12 @@ export function parseSearch(q: string): string[][] {
   endGroup();
   return groups;
 }
+
+// ───────────────────────── sortowanie osób ─────────────────────────
+
+const collator = new Intl.Collator("pl");
+
+/** Porównanie osób: cały tekst pola `name` ("Imię Nazwisko") w polskiej kolejności liter, bez analizy jego zawartości; na końcu id dla stabilności. */
+export function compareNames(a: { name: string; id: string }, b: { name: string; id: string }): number {
+  return collator.compare(a.name, b.name) || a.id.localeCompare(b.id);
+}
