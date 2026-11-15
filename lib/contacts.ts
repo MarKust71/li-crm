@@ -1,6 +1,6 @@
 import type { Prisma, Stage } from "@prisma/client";
 import { prisma } from "./prisma";
-import { parseSearch } from "./contacts-search";
+import { compareNames, parseSearch } from "./contacts-search";
 import { STAGES } from "./labels";
 
 export const PAGE_SIZE = 50;
@@ -105,20 +105,11 @@ function toRow(r: Row, lastActivity: Date | null) {
 /**
  * Kolejność w bazie: Postgres nie gwarantuje żadnej "naturalnej" kolejności bez ORDER BY, a stronicowanie
  * wymaga kolejności stabilnej. Bez sortowania używamy więc kolejności dodania (createdAt, id).
- * Etap sortuje się wg kolejności wartości enuma, czyli kolejności lejka.
+ * Sortowania po nazwie, etapie i tagach robimy w pamięci (idsByColumns): baza ma kolację en_US, która źle układa polskie litery
+ * (np. "Ł"), a kolejność w aplikacji nie zależy od ustawień bazy (lokalnej i produkcyjnej).
  */
-function orderByFor(f: ContactFilters): Prisma.ContactOrderByWithRelationInput[] {
-  const d: SortDir = f.dir || "asc";
-  switch (f.sort) {
-    case "name":
-      return [{ name: d }, { id: "asc" }];
-    case "stage":
-      return [{ stage: d }, { name: "asc" }, { id: "asc" }];
-    case "tags": // liczba tagów
-      return [{ tags: { _count: d } }, { name: "asc" }, { id: "asc" }];
-    default:
-      return [{ createdAt: "asc" }, { id: "asc" }];
-  }
+function orderByFor(): Prisma.ContactOrderByWithRelationInput[] {
+  return [{ createdAt: "asc" }, { id: "asc" }];
 }
 
 // Ostatnia aktywność: najnowsze zdarzenie z prawdziwą datą (bez znaczników dateUnknown, np. 2000-01-01).
@@ -135,6 +126,7 @@ export async function listContacts(f: ContactFilters) {
   const where = buildWhere(f);
   if (f.sort === "activity") return listByActivity(f, where);
   if (f.sort === "occupation") return listByOccupation(f, where);
+  if (f.sort === "name" || f.sort === "stage" || f.sort === "tags") return pageOf(await idsByColumns(f, where), f);
 
   const total = await prisma.contact.count({ where });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -142,7 +134,7 @@ export async function listContacts(f: ContactFilters) {
 
   const rows = await prisma.contact.findMany({
     where,
-    orderBy: orderByFor(f),
+    orderBy: orderByFor(),
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     select: SELECT,
@@ -155,7 +147,7 @@ export async function listContacts(f: ContactFilters) {
 // "Ostatnia aktywność" jest wartością wyliczaną (CLAUDE.md: nie przechowujemy), więc nie da się po niej
 // posortować w jednym zapytaniu Prismy. Przy kilku tysiącach kontaktów: pobierz pasujące id + ostatnie daty,
 // posortuj w pamięci (kontakty bez daty zawsze na końcu) i dopiero wtedy wczytaj bieżącą stronę.
-async function listByActivity(f: ContactFilters, where: Prisma.ContactWhereInput) {
+async function idsByActivity(f: ContactFilters, where: Prisma.ContactWhereInput) {
   const [all, lastById] = await Promise.all([
     prisma.contact.findMany({ where, select: { id: true, name: true } }),
     lastActivityFor(),
@@ -167,10 +159,15 @@ async function listByActivity(f: ContactFilters, where: Prisma.ContactWhereInput
     if (x === undefined && y !== undefined) return 1;
     if (x !== undefined && y === undefined) return -1;
     if (x !== undefined && y !== undefined && x !== y) return (x - y) * sign;
-    return a.name.localeCompare(b.name, "pl") || a.id.localeCompare(b.id);
+    return byName(a, b);
   });
 
-  return pageOf(all.map((r) => r.id), f, lastById);
+  return { ids: all.map((r) => r.id), lastById };
+}
+
+async function listByActivity(f: ContactFilters, where: Prisma.ContactWhereInput) {
+  const { ids, lastById } = await idsByActivity(f, where);
+  return pageOf(ids, f, lastById);
 }
 
 /** Wczytuje bieżącą stronę dla już posortowanej listy id. */
@@ -197,7 +194,7 @@ async function pageOf(sortedIds: string[], f: ContactFilters, lastById?: Map<str
 
 // Zajęcie sortujemy w pamięci (jak aktywność): polska kolejność liter (np. "Ł" po "L"), a puste i znaczniki braku danych
 // zawsze na końcu, także przy sortowaniu malejącym.
-async function listByOccupation(f: ContactFilters, where: Prisma.ContactWhereInput) {
+async function idsByOccupation(f: ContactFilters, where: Prisma.ContactWhereInput) {
   const all = await prisma.contact.findMany({ where, select: { id: true, name: true, occupation: true } });
   const sign = f.dir === "desc" ? -1 : 1;
   // klucz bez początkowych znaków specjalnych (cudzysłowy, nawiasy, #, emoji), żeby nagłówki typu "[CEO]" nie lądowały przed literami
@@ -212,9 +209,69 @@ async function listByOccupation(f: ContactFilters, where: Prisma.ContactWhereInp
       const c = a.occ.localeCompare(b.occ, "pl", { sensitivity: "base" });
       if (c !== 0) return c * sign;
     }
-    return a.name.localeCompare(b.name, "pl") || a.id.localeCompare(b.id);
+    return byName(a, b);
   });
-  return pageOf(key.map((r) => r.id), f);
+  return key.map((r) => r.id);
+}
+
+async function listByOccupation(f: ContactFilters, where: Prisma.ContactWhereInput) {
+  return pageOf(await idsByOccupation(f, where), f);
+}
+
+const STAGE_ORDER = new Map(STAGES.map((s, i) => [s.value, i]));
+const byName = compareNames;
+
+// Nazwa (cały tekst "Imię Nazwisko", polska kolejność liter), etap (kolejność lejka) i liczba tagów: w pamięci, remisy rozstrzyga nazwa rosnąco.
+async function idsByColumns(f: ContactFilters, where: Prisma.ContactWhereInput) {
+  const rows = await prisma.contact.findMany({ where, select: { id: true, name: true, stage: true, _count: { select: { tags: true } } } });
+  const sign = f.dir === "desc" ? -1 : 1;
+  rows.sort((a, b) => {
+    if (f.sort === "name") return byName(a, b) * sign;
+    const x = f.sort === "stage" ? (STAGE_ORDER.get(a.stage) ?? 0) - (STAGE_ORDER.get(b.stage) ?? 0) : a._count.tags - b._count.tags;
+    return x * sign || byName(a, b);
+  });
+  return rows.map((r) => r.id);
+}
+
+/** Wszystkie id pasujące do filtrów w kolejności listy (do nawigacji "poprzedni / następny" na karcie kontaktu). */
+async function allIds(f: ContactFilters): Promise<string[]> {
+  const where = buildWhere(f);
+  if (f.sort === "activity") return (await idsByActivity(f, where)).ids;
+  if (f.sort === "occupation") return idsByOccupation(f, where);
+  if (f.sort === "name" || f.sort === "stage" || f.sort === "tags") return idsByColumns(f, where);
+  return (await prisma.contact.findMany({ where, orderBy: orderByFor(), select: { id: true } })).map((r) => r.id);
+}
+
+/** Sąsiedzi kontaktu na liście o danych filtrach i sortowaniu; null, gdy kontaktu nie ma na tej liście. */
+export async function contactNeighbors(f: ContactFilters, id: string) {
+  const ids = await allIds(f);
+  const index = ids.indexOf(id);
+  if (index < 0) return null;
+  return { prev: ids[index - 1] ?? null, next: ids[index + 1] ?? null, position: index + 1, total: ids.length };
+}
+
+/** Parametry listy jako zapytanie URL (to samo, co zapisuje strona listy); strona > 1 jest dopisywana. */
+export function filtersQuery(f: ContactFilters, page: number): string {
+  const p = new URLSearchParams();
+  if (f.q) p.set("q", f.q);
+  if (f.location) p.set("location", f.location);
+  if (f.occupation) p.set("occupation", f.occupation);
+  if (f.stage) p.set("stage", f.stage);
+  if (f.tag) p.set("tag", f.tag);
+  if (f.otw) p.set("otw", "1");
+  if (f.archived !== "active") p.set("archived", f.archived);
+  if (f.sort) {
+    p.set("sort", f.sort);
+    p.set("dir", f.dir || "asc");
+  }
+  if (page > 1) p.set("page", String(page));
+  return p.toString();
+}
+
+/** Kontekst listy przekazany w adresie karty (`?from=`): sprawdzony i zapisany od nowa, więc do zapytania nie trafia nic spoza znanych filtrów. */
+export function listContextFrom(raw: string | null | undefined): { filters: ContactFilters; query: string } {
+  const filters = parseFilters(Object.fromEntries(new URLSearchParams((raw ?? "").slice(0, 600))));
+  return { filters, query: filtersQuery(filters, filters.page) };
 }
 
 export async function listTagNames(): Promise<string[]> {

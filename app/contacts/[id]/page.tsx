@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { SubmitButton } from "@/components/submit-button";
+import { StepMessageField } from "@/components/step-message-field";
 import { SiteNav } from "@/components/site-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +15,11 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { AddReminderForm, ReminderItem } from "@/components/reminders";
-import { getContact } from "@/lib/contacts";
+import { contactNeighbors, getContact, listContextFrom, type ContactFilters } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
+import { countSameLocation } from "@/lib/contact-events";
+import { isSuggestedStep } from "@/lib/invite-message";
+import { upcomingMeetings } from "@/lib/meeting-sync-core";
 import { listContactReminders } from "@/lib/reminders";
 import {
   ALL_EVENT_TYPES,
@@ -49,6 +53,13 @@ const ERRORS: Record<string, string> = {
   "has-follow-up": "Nie można usunąć jedynego odbytego BOM, dopóki kontakt ma Follow-up (FU). Usuń najpierw FU.",
 };
 
+/** "1 otwarte przypomnienie", "2–4 otwarte przypomnienia", "5+ otwartych przypomnień" (z wyjątkiem 12–14). */
+function openRemindersLabel(n: number): string {
+  if (n === 1) return "otwarte przypomnienie";
+  const last = n % 10;
+  return last >= 2 && last <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? "otwarte przypomnienia" : "otwartych przypomnień";
+}
+
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long", timeZone: "Europe/Warsaw" });
 const dateTimeFmt = new Intl.DateTimeFormat("pl-PL", {
   dateStyle: "long",
@@ -70,9 +81,15 @@ export default function ContactPage({ params, searchParams }: Props) {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <Link href="/contacts" className="text-sm text-muted-foreground underline">
-          ← Kontakty
-        </Link>
+        <Suspense
+          fallback={
+            <Link href="/contacts" className="text-sm text-muted-foreground underline">
+              ← Kontakty
+            </Link>
+          }
+        >
+          <ListNav params={params} searchParams={searchParams} />
+        </Suspense>
         <SiteNav current="contacts" />
       </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Ładuję kontakt…</p>}>
@@ -82,16 +99,69 @@ export default function ContactPage({ params, searchParams }: Props) {
   );
 }
 
+/** Powrót do listy z zachowanymi filtrami i sortowaniem oraz przejście do poprzedniego / następnego kontaktu z tej listy. */
+async function ListNav({ params, searchParams }: Props) {
+  const { id } = await params;
+  const sp = await searchParams;
+  const from = Array.isArray(sp.from) ? sp.from[0] : sp.from;
+  const { filters, query } = listContextFrom(from);
+  const back = query ? `/contacts?${query}` : "/contacts";
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <Link href={back} className="text-sm text-muted-foreground underline">
+        ← Kontakty
+      </Link>
+      {from && (
+        <Suspense fallback={null}>
+          <Neighbors id={id} filters={filters} query={query} />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+async function Neighbors({ id, filters, query }: { id: string; filters: ContactFilters; query: string }) {
+  const n = await contactNeighbors(filters, id);
+  if (!n) return null;
+  const href = (to: string) => `/contacts/${to}?from=${encodeURIComponent(query)}`;
+  const link = "rounded-md border px-2 py-0.5 text-sm hover:bg-muted";
+  const off = "rounded-md border px-2 py-0.5 text-sm text-muted-foreground/50";
+  return (
+    <nav className="flex items-center gap-2" aria-label="Kontakty z listy">
+      {n.prev ? (
+        <Link href={href(n.prev)} className={link} rel="prev" title="Poprzedni kontakt z listy">
+          ← Poprzedni
+        </Link>
+      ) : (
+        <span className={off}>← Poprzedni</span>
+      )}
+      <span className="text-xs tabular-nums text-muted-foreground" title="Miejsce na liście o bieżących filtrach">
+        {n.position.toLocaleString("pl-PL")} z {n.total.toLocaleString("pl-PL")}
+      </span>
+      {n.next ? (
+        <Link href={href(n.next)} className={link} rel="next" title="Następny kontakt z listy">
+          Następny →
+        </Link>
+      ) : (
+        <span className={off}>Następny →</span>
+      )}
+    </nav>
+  );
+}
+
 async function ContactCard({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
   const contact = await getContact(id);
   if (!contact) notFound();
-  const reminders = await listContactReminders(id);
+  const [reminders, sameLocation] = await Promise.all([listContactReminders(id), countSameLocation(id, contact.location)]);
 
   const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   const error = errorKey ? ERRORS[errorKey] : undefined;
   const today = todayWarsaw();
+  const openReminders = reminders.filter((r) => r.status === "OPEN").length;
+  const meetings = upcomingMeetings(contact.events, new Date());
+  const archiveInfo = [contact.archiveReason ? ARCHIVE_REASON_LABEL[contact.archiveReason] : null, contact.archivedAt ? dateFmt.format(contact.archivedAt) : null].filter(Boolean).join(", ");
   const steps = nextSteps(contact.stage, contact.direction);
   const tags = contact.tags.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b, "pl"));
 
@@ -122,6 +192,28 @@ async function ContactCard({ params, searchParams }: Props) {
           </form>
         </div>
       </header>
+
+      {contact.archived && (
+        <Alert className="mb-4">
+          <AlertDescription>
+            <p>
+              <strong>Kontakt zarchiwizowany</strong>
+              {archiveInfo ? ` (${archiveInfo})` : ""}. Jest ukryty na liście kontaktów (do przywrócenia w sekcji „Przywróć kontakt”). Zdarzenia i przypomnienia
+              możesz nadal dodawać, ale kontakt pozostanie ukryty.
+            </p>
+            {openReminders > 0 && (
+              <p className="mt-1">
+                Ma {openReminders} {openRemindersLabel(openReminders)}: nadal widać je w „Dziś”, na Telegramie i w kalendarzu.
+              </p>
+            )}
+            {meetings.length > 0 && (
+              <p className="mt-1">
+                Umówione spotkanie: {meetings.map((m) => `${m.type === "FOLLOW_UP" ? "FU" : "BOM"} ${dateTimeFmt.format(m.scheduledAt)}`).join(", ")} (zostaje w kalendarzu i dostanie przypomnienie na Telegramie).
+              </p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="destructive" role="alert" className="mb-4">
@@ -208,6 +300,23 @@ async function ContactCard({ params, searchParams }: Props) {
               <form action={updateDetailsAction} className={form}>
                 <input type="hidden" name="id" value={contact.id} />
                 <div className={field}>
+                  <Label htmlFor="occupation">Zajęcie</Label>
+                  <Input id="occupation" name="occupation" defaultValue={contact.occupation ?? ""} maxLength={300} />
+                </div>
+                <div className={field}>
+                  <Label htmlFor="location">Lokalizacja</Label>
+                  <Input id="location" name="location" defaultValue={contact.location ?? ""} maxLength={200} />
+                  {sameLocation > 0 && (
+                    <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <input type="checkbox" name="applyLocationToAll" defaultChecked className="mt-0.5" />
+                      <span>
+                        Przy zmianie zmień też u {sameLocation.toLocaleString("pl-PL")} {sameLocation === 1 ? "innego kontaktu" : "innych kontaktów"} z lokalizacją „{contact.location}” (cały
+                        zapis, bez rozróżniania wielkości liter)
+                      </span>
+                    </label>
+                  )}
+                </div>
+                <div className={field}>
                   <Label htmlFor="salutation">Zwrot (np. „Pani Aniu”)</Label>
                   <Input id="salutation" name="salutation" defaultValue={contact.salutation ?? ""} maxLength={100} />
                 </div>
@@ -251,6 +360,19 @@ async function ContactCard({ params, searchParams }: Props) {
                       ))}
                     </NativeSelect>
                   </div>
+                  {openReminders > 0 && (
+                    <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <input type="checkbox" name="cancelReminders" defaultChecked className="mt-0.5" />
+                      <span>
+                        Anuluj {openReminders} {openRemindersLabel(openReminders)} (znikną też z kalendarza)
+                      </span>
+                    </label>
+                  )}
+                  {meetings.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Uwaga: umówione spotkanie ({meetings.map((m) => `${m.type === "FOLLOW_UP" ? "FU" : "BOM"} ${dateTimeFmt.format(m.scheduledAt)}`).join(", ")}) zostaje w kalendarzu. Jeśli się nie odbędzie, odwołaj je w historii kontaktu.
+                    </p>
+                  )}
                   <Button type="submit" variant="outline" className="self-start">
                     Archiwizuj
                   </Button>
@@ -273,7 +395,11 @@ async function ContactCard({ params, searchParams }: Props) {
               </div>
               <div className={field}>
                 <Label htmlFor="next-message">Treść wiadomości (opcjonalnie)</Label>
-                <Textarea id="next-message" name="message" rows={3} maxLength={5000} />
+                {isSuggestedStep(steps[0]) ? (
+                  <StepMessageField key={steps[0]} step={steps[0]} salutation={contact.salutation} />
+                ) : (
+                  <Textarea id="next-message" name="message" rows={3} maxLength={5000} />
+                )}
               </div>
               {(steps.includes("BOM_SCHEDULED") || steps.includes("FOLLOW_UP")) && (
                 <div className={field}>

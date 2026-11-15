@@ -39,6 +39,18 @@ export function meetingOutcome(scheduledId: string, history: Hist[]): Outcome {
   return last.type === "BOM_NO_SHOW" ? "no_show" : "canceled";
 }
 
+/** Nadchodzące, jeszcze aktywne spotkania kontaktu: umówiony BOM bez wyniku (odbyty / nieobecność / odwołany) i FU z terminem w przyszłości. */
+export function upcomingMeetings(
+  events: { id: string; type: EventType; occurredAt: Date; createdAt: Date; scheduledAt: Date | null }[],
+  now: Date,
+): { type: EventType; scheduledAt: Date }[] {
+  return events
+    .filter((e) => (e.type === "BOM_SCHEDULED" || e.type === "FOLLOW_UP") && e.scheduledAt && e.scheduledAt > now)
+    .filter((e) => e.type !== "BOM_SCHEDULED" || meetingOutcome(e.id, events) === "open")
+    .map((e) => ({ type: e.type, scheduledAt: e.scheduledAt! }))
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+}
+
 export const defaultMeetingTitle = (type: EventType, contactName: string) => `${type === "FOLLOW_UP" ? "FU" : "BOM"}: ${contactName}`;
 
 /** Tytuł w kalendarzu. BOM: znacznik wynika ze stanu; FU: tytuł dosłownie (znacznik użytkownika jest częścią tytułu). */

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { addContactEvent, deleteContactEvent, setArchived, setOpenToWork, updateContactDetails } from "@/lib/contact-events";
+import { refererListQuery } from "@/lib/list-context";
 import { prisma } from "@/lib/prisma";
 import { ALL_EVENT_TYPES, ARCHIVE_REASONS } from "@/lib/labels";
 import { parseDateInput, parseDateTimeInput } from "@/lib/dates";
@@ -23,10 +24,12 @@ async function contactIdFrom(formData: FormData): Promise<string> {
   return id;
 }
 
-function done(id: string, error?: string): never {
+async function done(id: string, error?: string): Promise<never> {
   revalidatePath(`/contacts/${id}`);
   revalidatePath("/contacts");
-  redirect(error ? `/contacts/${id}?error=${error}` : `/contacts/${id}`);
+  const from = await refererListQuery();
+  const qs = [from ? `from=${encodeURIComponent(from)}` : "", error ? `error=${error}` : ""].filter(Boolean).join("&");
+  redirect(qs ? `/contacts/${id}?${qs}` : `/contacts/${id}`);
 }
 
 export async function addEventAction(formData: FormData) {
@@ -34,23 +37,24 @@ export async function addEventAction(formData: FormData) {
   const id = await contactIdFrom(formData);
 
   const type = text(formData.get("type"), 40) as EventType | null;
-  if (!type || !ALL_EVENT_TYPES.includes(type)) done(id, "type");
+  if (!type || !ALL_EVENT_TYPES.includes(type)) await done(id, "type");
 
   const occurredAt = parseDateInput(text(formData.get("date"), 10) ?? "");
-  if (!occurredAt) done(id, "date");
+  if (!occurredAt) await done(id, "date");
 
   const scheduledRaw = text(formData.get("scheduledAt"), 16);
   const scheduledAt = scheduledRaw ? parseDateTimeInput(scheduledRaw) : null;
-  if (scheduledRaw && !scheduledAt) done(id, "date");
+  if (scheduledRaw && !scheduledAt) await done(id, "date");
 
   const result = await addContactEvent(id, {
     type: type!,
     occurredAt: occurredAt!,
-    message: text(formData.get("message"), 5000),
+    // nietknięta podpowiedź treści należy tylko do kroku, dla którego ją przygotowano (np. nie do "Zaproszenie wycofane")
+    message: formData.get("suggestionUntouched") === "1" && text(formData.get("suggestedFor"), 40) !== type ? null : text(formData.get("message"), 5000),
     // termin spotkania ma sens tylko dla BOM umówionego i follow-upu (trafiają do kalendarza)
     scheduledAt: type === "BOM_SCHEDULED" || type === "FOLLOW_UP" ? scheduledAt : null,
   });
-  done(id, result.ok ? undefined : result.error);
+  await done(id, result.ok ? undefined : result.error);
 }
 
 export async function deleteEventAction(formData: FormData) {
@@ -61,42 +65,44 @@ export async function deleteEventAction(formData: FormData) {
   if (!result.ok && result.error === "not-found") notFound();
   if (!result.ok) {
     const owner = await prisma.contactEvent.findUnique({ where: { id: eventId }, select: { contactId: true } });
-    done(owner!.contactId, result.error);
+    await done(owner!.contactId, result.error);
   }
-  done(result.ok ? result.contactId : "");
+  await done(result.ok ? result.contactId : "");
 }
 
 export async function archiveAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
   const reason = text(formData.get("reason"), 30) as ArchiveReason | null;
-  if (!reason || !ARCHIVE_REASONS.some((r) => r.value === reason)) done(id, "reason");
-  await setArchived(id, reason);
-  done(id);
+  if (!reason || !ARCHIVE_REASONS.some((r) => r.value === reason)) await done(id, "reason");
+  await setArchived(id, reason, { cancelReminders: formData.get("cancelReminders") === "on" });
+  await done(id);
 }
 
 export async function unarchiveAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
   await setArchived(id, null);
-  done(id);
+  await done(id);
 }
 
 export async function toggleOpenToWorkAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
   await setOpenToWork(id, formData.get("value") === "1");
-  done(id);
+  await done(id);
 }
 
 export async function updateDetailsAction(formData: FormData) {
   await requireAccess();
   const id = await contactIdFrom(formData);
   await updateContactDetails(id, {
+    occupation: text(formData.get("occupation"), 300),
+    location: text(formData.get("location"), 200),
     salutation: text(formData.get("salutation"), 100),
     email: text(formData.get("email"), 200),
     phone: text(formData.get("phone"), 50),
     info: text(formData.get("info"), 10000),
-  });
-  done(id);
+  }, { applyLocationToAll: formData.get("applyLocationToAll") === "on" });
+  await done(id);
 }
