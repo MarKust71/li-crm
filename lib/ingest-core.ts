@@ -60,6 +60,31 @@ const text = (v: unknown, max: number): string | null => {
   return t ? t.slice(0, max) : null;
 };
 
+const fold = (v: string) =>
+  v
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/ł/g, "l")
+    .toLowerCase();
+
+/**
+ * Rozszerzenie przy kartach bez własnego przycisku „Message” (2./3. stopień) potrafi wziąć imię z innej karty. Rozpoznajemy to po tym,
+ * że żaden człon imienia (min. 3 litery) nie występuje w adresie profilu (`/in/<slug>`); takiego imienia nie zapisujemy.
+ */
+export function nameMatchesProfile(name: string, profileUrl: string): boolean {
+  const slug = fold(decodeURIComponentSafe(profileUrl.split("/in/")[1] ?? ""));
+  const tokens = fold(name).split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+  return tokens.length === 0 || tokens.some((t) => slug.includes(t));
+}
+
+function decodeURIComponentSafe(v: string): string {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
 export type ViewerInput = { name: string; profileUrl: unknown; occupation: string | null; viewedAt: string | null };
 
 export const MAX_VIEWERS = 200;
@@ -97,6 +122,8 @@ export type IngestReport = {
   viewsAdded: number;
   /** to samo wyświetlenie było już zapisane */
   duplicates: number;
+  /** nowe osoby pominięte, bo imię z rozszerzenia nie pasuje do adresu profilu (zob. nameMatchesProfile) */
+  unclearName: number;
   /** wśród oglądających były kontakty zarchiwizowane (zdarzenie zapisano, archiwum bez zmian) */
   archivedViewers: number;
 };
@@ -107,6 +134,7 @@ export function reportText(r: IngestReport): string {
   if (r.occupationFilled) lines.push(`Uzupełniono zajęcie: ${r.occupationFilled}`);
   if (r.archivedViewers) lines.push(`Zarchiwizowani wśród oglądających: ${r.archivedViewers}`);
   if (r.skipped) lines.push(`Pominięto (brak imienia lub adresu): ${r.skipped}`);
+  if (r.unclearName) lines.push(`Pominięto (imię niezgodne z adresem profilu): ${r.unclearName}`);
   if (r.created.length) {
     lines.push("", "<b>Nowe</b>", ...r.created.slice(0, 10).map((c) => `• ${link(c.name, c.profileUrl)}`));
     if (r.created.length > 10) lines.push(`… i ${r.created.length - 10} więcej`);
