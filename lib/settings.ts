@@ -5,6 +5,7 @@ import { prisma } from "./prisma";
 export const KEYS = {
   intervalMinutes: "calendarSync.intervalMinutes",
   lastRunAt: "calendarSync.lastRunAt",
+  lastFinishedAt: "calendarSync.lastFinishedAt",
   manualRequestedAt: "calendarSync.manualRequestedAt",
   pullCursor: "calendarSync.pullCursor",
   lastError: "calendarSync.lastError",
@@ -31,6 +32,8 @@ export async function getSyncSettings() {
     // poprawne: -1 (wyłączona), 0 (ręcznie) lub 1…MAX; wszystko inne → domyślne
     intervalMinutes: Number.isInteger(interval) && interval >= -1 && interval <= MAX_INTERVAL_MINUTES && m.has(KEYS.intervalMinutes) ? interval : DEFAULT_INTERVAL_MINUTES,
     lastRunAt: asDate(m.get(KEYS.lastRunAt) ?? null),
+    /** koniec ostatniego przebiegu: n8n zgłosił wyniki (/api/sync/result) */
+    lastFinishedAt: asDate(m.get(KEYS.lastFinishedAt) ?? null),
     manualRequestedAt: asDate(m.get(KEYS.manualRequestedAt) ?? null),
     pullCursor: asDate(m.get(KEYS.pullCursor) ?? null),
     lastError: m.get(KEYS.lastError) ?? null,

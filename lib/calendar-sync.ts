@@ -95,6 +95,8 @@ export type OpResult = {
 
 export async function applyResults(results: OpResult[]) {
   const out = await applyResultsInner(results);
+  // znacznik końca przebiegu (pasek synchronizacji przestaje pokazywać "trwa")
+  await setSetting(KEYS.lastFinishedAt, new Date().toISOString());
   if (out.synced || out.failed) {
     await logActivity({
       source: "SYNC",

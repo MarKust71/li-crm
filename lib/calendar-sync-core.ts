@@ -21,6 +21,28 @@ export function evaluateGate({ intervalMinutes, lastRunAt, manualRequestedAt, no
   return { run: false, reason: "wait" };
 }
 
+// ───────────────────────── stan paska synchronizacji ─────────────────────────
+
+/** Po tylu minutach od zajęcia przebiegu bez zgłoszenia wyników uznajemy go za zawieszony i znów pokazujemy przycisk. */
+export const RUN_TIMEOUT_MS = 5 * 60_000;
+
+export type SyncBarState = "requested" | "running" | "idle";
+
+/**
+ * Co pokazać na pasku, gdy w kolejce coś czeka:
+ * - `requested`: zgłoszono synchronizację, n8n jeszcze jej nie podjął (bez przycisku),
+ * - `running`: przebieg zajęty, ale wyniki jeszcze nie wróciły (bez przycisku: trwający przebieg zabiera całą kolejkę z chwili pobrania,
+ *   a nowe zmiany czekają na kolejny; kolejne kliknięcie tylko zgłosiłoby nakładający się przebieg),
+ * - `idle`: nic nie trwa (albo przebieg się zawiesił): przycisk dostępny.
+ */
+export function syncBarState(i: { manualRequestedAt: Date | null; lastRunAt: Date | null; lastFinishedAt: Date | null; now: Date }): SyncBarState {
+  const { manualRequestedAt, lastRunAt, lastFinishedAt, now } = i;
+  if (manualRequestedAt && (!lastRunAt || manualRequestedAt > lastRunAt)) return "requested";
+  const open = lastRunAt && (!lastFinishedAt || lastFinishedAt < lastRunAt);
+  if (open && now.getTime() - lastRunAt.getTime() < RUN_TIMEOUT_MS) return "running";
+  return "idle";
+}
+
 // ───────────────────────── aplikacja → kalendarz ─────────────────────────
 
 export const ID_MARKER = "li-crm:"; // znacznik w opisie wydarzenia: pozwala odzyskać powiązanie, gdy n8n padnie po utworzeniu wydarzenia
