@@ -154,14 +154,16 @@ export async function setOpenToWork(contactId: string, value: boolean) {
 
 export async function updateContactDetails(
   contactId: string,
-  data: { occupation: string | null; location: string | null; threadUrl: string | null; salutation: string | null; email: string | null; phone: string | null; info: string | null },
+  data: { /** null = bez zmiany (imię nie może być puste) */ name: string | null; occupation: string | null; location: string | null; threadUrl: string | null; salutation: string | null; email: string | null; phone: string | null; info: string | null },
   opts: { applyLocationToAll?: boolean } = {},
 ) {
   await prisma.$transaction(async (tx) => {
     const before = await tx.contact.findUnique({ where: { id: contactId }, select: { name: true, occupation: true, location: true, threadUrl: true, salutation: true, email: true, phone: true, info: true } });
-    await tx.contact.update({ where: { id: contactId }, data });
+    const { name, ...rest } = data;
+    await tx.contact.update({ where: { id: contactId }, data: { ...rest, ...(name ? { name } : {}) } });
     // w logu tylko nazwy zmienionych pól (e-mail i telefon to dane osobowe)
-    const changed = (["occupation", "location", "threadUrl", "salutation", "email", "phone", "info"] as const).filter((k) => (before?.[k] ?? null) !== data[k]);
+    const changed: string[] = (["occupation", "location", "threadUrl", "salutation", "email", "phone", "info"] as const).filter((k) => (before?.[k] ?? null) !== rest[k]);
+    if (name && name !== before?.name) changed.unshift("name");
     if (changed.length) {
       await logActivity({ source: "UI", action: "contact.updated", contactId, summary: `Zmieniono dane kontaktu ${before?.name ?? ""}: ${changed.join(", ")}`, details: { fields: changed } }, tx);
     }

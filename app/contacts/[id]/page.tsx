@@ -329,6 +329,10 @@ async function ContactCard({ params, searchParams }: Props) {
               <form action={updateDetailsAction} className={form}>
                 <input type="hidden" name="id" value={contact.id} />
                 <div className={field}>
+                  <Label htmlFor="name">Imię i nazwisko</Label>
+                  <Input id="name" name="name" defaultValue={contact.name} maxLength={200} required />
+                </div>
+                <div className={field}>
                   <Label htmlFor="occupation">Zajęcie</Label>
                   <Input id="occupation" name="occupation" defaultValue={contact.occupation ?? ""} maxLength={300} />
                 </div>
