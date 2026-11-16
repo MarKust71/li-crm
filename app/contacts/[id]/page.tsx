@@ -341,7 +341,7 @@ async function ContactCard({ params, searchParams }: Props) {
                   <Input id="location" name="location" defaultValue={contact.location ?? ""} maxLength={200} />
                   {sameLocation > 0 && (
                     <label className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <input type="checkbox" name="applyLocationToAll" defaultChecked className="mt-0.5" />
+                      <input type="checkbox" name="applyLocationToAll" className="mt-0.5" />
                       <span>
                         Przy zmianie zmień też u {sameLocation.toLocaleString("pl-PL")} {sameLocation === 1 ? "innego kontaktu" : "innych kontaktów"} z lokalizacją „{contact.location}” (cały
                         zapis, bez rozróżniania wielkości liter)
