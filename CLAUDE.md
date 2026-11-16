@@ -54,6 +54,9 @@ Schemat bazy: `prisma/schema.prisma`.
 - Podpowiedzi czasu pracy (pasek `TimeBar` w `app/layout.tsx`) opierają się na dzienniku aktywności: nowe akcje użytkownika logujesz
   `logActivity` ze źródłem `UI`, a akcje niebędące pracą w CRM dostają prefiks `time.`, `settings.` lub `log.`. Pasek niczego nie zatrzymuje sam.
 
+- Dane z rozszerzenia wchodzą przez `/api/ingest/*` (`lib/ingest-core.ts`, `lib/ingest.ts`): aplikacja normalizuje adres profilu, tworzy kontakty "Zebrany"
+  i zdarzenia, składa raport dla Telegrama; n8n tylko przekazuje i wysyła. Wpisy dziennika ze źródłem `SYNC`, nie `UI` (nie liczą się jako praca w CRM).
+
 ## Środowiska
 
 - Dev: Postgres w lokalnym Dockerze (`docker compose up -d db`).
@@ -68,5 +71,5 @@ Schemat bazy: `prisma/schema.prisma`.
   W produkcji bez nich aplikacja nic nie serwuje (503); lokalnie bez nich logowanie jest wyłączone
 - `AUTH_RP_ID` i `AUTH_ORIGIN` (np. `li-crm.mydmb.pl` i `https://li-crm.mydmb.pl`): domena kluczy dostępu (Touch ID).
   Klucz jest przypięty do domeny; zmiana domeny wymaga ponownej rejestracji kluczy (hasło działa zawsze)
-- `INGEST_API_KEY` – klucz dla endpointu przyjmującego dane z n8n/rozszerzenia
+- `INGEST_API_KEY` – klucz (min. 24 znaki) endpointów `/api/ingest/*` przyjmujących dane z rozszerzenia przez n8n (`x-api-key`); na produkcji trzeba go ustawić na Vercelu
 - `SYNC_API_KEY` – klucz (min. 24 znaki) endpointów `/api/sync/*` dla n8n; ta sama wartość w poświadczeniu Header Auth w n8n (`x-api-key`)

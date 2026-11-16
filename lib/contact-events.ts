@@ -43,7 +43,7 @@ export async function addEventTx(
   tx: Prisma.TransactionClient,
   contactId: string,
   data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; sync?: EventSyncData },
-  opts: { fromCalendar?: boolean } = {},
+  opts: { fromCalendar?: boolean; /** pomija wpis w dzienniku (np. import zbiorczy zapisuje jedno podsumowanie) */ skipLog?: boolean } = {},
 ): Promise<EventResult> {
   if (isMeetingType(data.type) && !data.scheduledAt) return { ok: false, error: "no-schedule" };
   if (data.type === "FOLLOW_UP") {
@@ -62,7 +62,7 @@ export async function addEventTx(
   });
   await recomputeStage(tx, contactId);
   await applyEventAutomations(tx, contactId, data.type, data.occurredAt);
-  await logActivity(
+  if (!opts.skipLog) await logActivity(
     {
       source: opts.fromCalendar ? "SYNC" : "UI",
       action: "event.added",
