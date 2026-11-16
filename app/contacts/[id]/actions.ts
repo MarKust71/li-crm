@@ -101,6 +101,7 @@ export async function updateDetailsAction(formData: FormData) {
   const threadUrl = normalizeThreadUrl(text(formData.get("threadUrl"), 500));
   if (threadUrl === null) await done(id, "thread");
   await updateContactDetails(id, {
+    name: text(formData.get("name"), 200), // puste pole = bez zmiany imienia
     occupation: text(formData.get("occupation"), 300),
     location: text(formData.get("location"), 200),
     threadUrl: threadUrl || null,
