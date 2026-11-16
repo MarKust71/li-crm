@@ -7,7 +7,7 @@ const MAX_LIST = 12; // pozycji na listę, żeby zmieścić się w limicie Teleg
 const MAX_TEXT = 3900;
 
 export const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const link = (text: string, url: string) => `<a href="${escapeHtml(url).replace(/"/g, "&quot;")}">${escapeHtml(text)}</a>`;
+export const link = (text: string, url: string) => `<a href="${escapeHtml(url).replace(/"/g, "&quot;")}">${escapeHtml(text)}</a>`;
 
 export type NotifySettings = {
   /** -1 = wyłączony, 0…23 = godzina (czas warszawski), od której wysyłamy poranny przegląd. */
