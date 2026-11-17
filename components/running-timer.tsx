@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { quickStopAction, type QuickStopState } from "@/app/time/actions";
+import { pauseFromBarAction, quickStopAction, resumeFromBarAction, type QuickStopState } from "@/app/time/actions";
 import { Elapsed } from "@/components/elapsed";
 import { SubmitButton } from "@/components/submit-button";
 import {
@@ -21,24 +21,28 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 type Props = {
   entryId: string;
   startedAt: number;
+  pausedAt: number | null;
+  pausedSeconds: number;
   activityId: string | null;
   activityName: string | null;
   activities: { id: string; name: string }[];
 };
 
 /** Licznik trwającej sesji w nawigacji; kliknięcie otwiera okienko zatrzymania (godzina końca, czynność, liczba sztuk). */
-export function RunningTimer({ entryId, startedAt, activityId, activityName, activities }: Props) {
+export function RunningTimer({ entryId, startedAt, pausedAt, pausedSeconds, activityId, activityName, activities }: Props) {
   const [state, action] = useActionState<QuickStopState, FormData>(quickStopAction, null);
   return (
+    <>
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <button
           type="button"
           className="ml-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm hover:bg-muted"
-          title="Trwa sesja czasu pracy: kliknij, aby zatrzymać"
+          title={pausedAt ? "Sesja czasu pracy wstrzymana: kliknij, aby zatrzymać" : "Trwa sesja czasu pracy: kliknij, aby zatrzymać"}
         >
-          <span className="size-2 animate-pulse rounded-full bg-destructive" aria-hidden />
-          <Elapsed startedAt={startedAt} className="font-mono tabular-nums" />
+          <span className={`size-2 rounded-full ${pausedAt ? "bg-muted-foreground" : "animate-pulse bg-destructive"}`} aria-hidden />
+          <Elapsed startedAt={startedAt} pausedAt={pausedAt} pausedSeconds={pausedSeconds} className="font-mono tabular-nums" />
+          {pausedAt && <span className="text-muted-foreground">pauza</span>}
           {activityName && <span className="max-w-40 truncate text-muted-foreground">{activityName}</span>}
         </button>
       </AlertDialogTrigger>
@@ -46,7 +50,7 @@ export function RunningTimer({ entryId, startedAt, activityId, activityName, act
         <AlertDialogHeader>
           <AlertDialogTitle>Zatrzymać rejestrowanie czasu?</AlertDialogTitle>
           <AlertDialogDescription>
-            Sesja trwa <Elapsed startedAt={startedAt} className="font-mono tabular-nums" />. Zostaw godzinę pustą, aby zakończyć teraz.
+            Sesja trwa <Elapsed startedAt={startedAt} pausedAt={pausedAt} pausedSeconds={pausedSeconds} className="font-mono tabular-nums" /> (bez przerw){pausedAt ? "; jest wstrzymana, więc zakończy się w chwili wstrzymania" : ""}. Zostaw godzinę pustą, aby zakończyć teraz.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <form action={action} className="flex flex-col gap-3">
@@ -88,5 +92,10 @@ export function RunningTimer({ entryId, startedAt, activityId, activityName, act
         </form>
       </AlertDialogContent>
     </AlertDialog>
+    <form action={pausedAt ? resumeFromBarAction : pauseFromBarAction}>
+      <input type="hidden" name="id" value={entryId} />
+      <SubmitButton size="sm" variant="outline">{pausedAt ? "Wznów" : "Pauza"}</SubmitButton>
+    </form>
+    </>
   );
 }

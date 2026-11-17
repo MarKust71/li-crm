@@ -63,14 +63,15 @@ export async function notifyTestAction() {
 export async function saveTimeSettingsAction(formData: FormData) {
   await requireAccess();
   const idleMinutes = Number(formData.get("idleMinutes"));
+  const pauseMinutes = Number(formData.get("pauseMinutes"));
   const suggestStart = formData.get("suggestStart") === "on";
-  const ok = await setTimeSettings({ idleMinutes, suggestStart });
+  const ok = await setTimeSettings({ idleMinutes, pauseMinutes, suggestStart });
   if (ok) {
     await logActivity({
       source: "UI",
       action: "settings.time",
-      summary: `Czas pracy: próg bezczynności ${idleMinutes > 0 ? `${idleMinutes} min` : "wyłączony"}, podpowiedź włączenia ${suggestStart ? "włączona" : "wyłączona"}`,
-      details: { idleMinutes, suggestStart },
+      summary: `Czas pracy: próg pauzy ${pauseMinutes > 0 ? `${pauseMinutes} min` : "wyłączony"}, próg zakończenia ${idleMinutes > 0 ? `${idleMinutes} min` : "wyłączony"}, podpowiedź włączenia ${suggestStart ? "włączona" : "wyłączona"}`,
+      details: { idleMinutes, pauseMinutes, suggestStart },
     });
   }
   revalidatePath("/settings");

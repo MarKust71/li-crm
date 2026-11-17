@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { addDays, parseDateInput, parseDateTimeInput, todayWarsaw } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
-import { MAX_COUNT, deleteEntry, endRunningAt, resolveActivityId, startSession, stopSession, updateEntry } from "@/lib/time";
+import { MAX_COUNT, deleteEntry, endRunningAt, pauseSession, resolveActivityId, resumeSession, startSession, stopSession, updateEntry } from "@/lib/time";
 
 const text = (v: FormDataEntryValue | null, max: number): string | null => {
   if (typeof v !== "string") return null;
@@ -84,9 +84,19 @@ export async function updateEntryAction(formData: FormData) {
   const count = parseCount(formData.get("count"));
   if (!count.ok) done("count", page);
 
+  // przerwy (min): zapisujemy tylko po zmianie, żeby samo poprawienie notatki nie obcinało sekund
+  const pauseRaw = text(formData.get("pausedMinutes"), 6);
+  const pauseInitial = text(formData.get("pausedMinutesInitial"), 6);
+  let pausedMinutes: number | undefined;
+  if (pauseRaw !== pauseInitial) {
+    if (pauseRaw !== null && !/^\d{1,5}$/.test(pauseRaw)) done("pause", page);
+    pausedMinutes = Number(pauseRaw ?? 0);
+  }
+
   const result = await updateEntry(id!, {
     startedAt: start.changed ? (start.value ?? undefined) : undefined,
     endedAt: end.changed ? (end.value ?? undefined) : undefined,
+    pausedMinutes,
     activityId: await activityFrom(formData),
     count: count.ok ? count.value : null,
     note: text(formData.get("note"), 2000),
@@ -110,6 +120,22 @@ const iso = (v: FormDataEntryValue | null): Date | null => {
   const d = t ? new Date(t) : null;
   return d && !Number.isNaN(d.getTime()) ? d : null;
 };
+
+/** Wstrzymanie od podanej chwili (np. ostatniej aktywności) albo od teraz; bez przekierowania. */
+export async function pauseFromBarAction(formData: FormData) {
+  await requireAccess();
+  const id = text(formData.get("id"), 64);
+  if (id) await pauseSession(id, iso(formData.get("at")) ?? new Date());
+  revalidatePath("/", "layout");
+}
+
+/** Wznowienie od podanej chwili (np. początku nowej serii aktywności) albo od teraz; bez przekierowania. */
+export async function resumeFromBarAction(formData: FormData) {
+  await requireAccess();
+  const id = text(formData.get("id"), 64);
+  if (id) await resumeSession(id, iso(formData.get("at")) ?? new Date());
+  revalidatePath("/", "layout");
+}
 
 /** Włącza rejestrowanie od podanej chwili (początek serii aktywności) albo od teraz. */
 export async function startFromBarAction(formData: FormData) {
@@ -166,7 +192,8 @@ export async function quickStopAction(_prev: QuickStopState, formData: FormData)
 /** "Nie teraz": ciasteczko z czasem wygaśnięcia ukrywa pasek na 2 godziny albo do końca dnia (czas warszawski). */
 export async function snoozeTimeBarAction(formData: FormData) {
   await requireAccess();
-  const kind = formData.get("kind") === "idle" ? "idle" : "start";
+  const k = formData.get("kind");
+  const kind = k === "idle" || k === "pause" ? k : "start";
   const until =
     formData.get("mode") === "day" ? parseDateInput(addDays(todayWarsaw(), 1))!.getTime() : Date.now() + 2 * 3_600_000;
   (await cookies()).set(`li_snooze_${kind}`, String(until), {

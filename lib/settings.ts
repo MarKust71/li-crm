@@ -93,27 +93,39 @@ export const requestNotifyTest = () => setSetting(NOTIFY_KEYS.testRequestedAt, n
 
 export const TIME_KEYS = {
   idleMinutes: "time.idleMinutes",
+  pauseMinutes: "time.pauseMinutes",
   suggestStart: "time.suggestStart",
 } as const;
 
 export const DEFAULT_IDLE_MINUTES = 120;
+export const DEFAULT_PAUSE_MINUTES = 15;
 export const MAX_IDLE_MINUTES = 1440;
+export const MIN_PAUSE_MINUTES = 5;
 
-/** idleMinutes: po tylu minutach bez aktywności w aplikacji trwająca sesja dostaje propozycję zakończenia (0 = wyłączone). */
-export async function getTimeSettings(): Promise<{ idleMinutes: number; suggestStart: boolean }> {
+export type TimeSettings = { idleMinutes: number; pauseMinutes: number; suggestStart: boolean };
+
+/**
+ * idleMinutes: po tylu minutach bez aktywności w aplikacji trwająca sesja dostaje propozycję zakończenia (0 = wyłączone).
+ * pauseMinutes: po tylu minutach bez aktywności dostaje propozycję wstrzymania (0 = wyłączone); działa przed propozycją zakończenia.
+ */
+export async function getTimeSettings(): Promise<TimeSettings> {
   const rows = await prisma.appSetting.findMany({ where: { key: { in: Object.values(TIME_KEYS) } } });
   const m = new Map(rows.map((r) => [r.key, r.value]));
   return {
     idleMinutes: intIn(m.get(TIME_KEYS.idleMinutes), 0, MAX_IDLE_MINUTES, DEFAULT_IDLE_MINUTES),
+    pauseMinutes: intIn(m.get(TIME_KEYS.pauseMinutes), 0, MAX_IDLE_MINUTES, DEFAULT_PAUSE_MINUTES),
     suggestStart: m.has(TIME_KEYS.suggestStart) ? m.get(TIME_KEYS.suggestStart) === "1" : true,
   };
 }
 
-/** Zwraca false dla wartości spoza zakresu (0 = wyłączone, inaczej 15…1440). */
-export async function setTimeSettings(input: { idleMinutes: number; suggestStart: boolean }): Promise<boolean> {
+/** Zwraca false dla wartości spoza zakresu (idle: 0 lub 15…1440; pauza: 0 lub 5…1440). */
+export async function setTimeSettings(input: TimeSettings): Promise<boolean> {
   const n = input.idleMinutes;
+  const p = input.pauseMinutes;
   if (!Number.isInteger(n) || n < 0 || n > MAX_IDLE_MINUTES || (n > 0 && n < 15)) return false;
+  if (!Number.isInteger(p) || p < 0 || p > MAX_IDLE_MINUTES || (p > 0 && p < MIN_PAUSE_MINUTES)) return false;
   await setSetting(TIME_KEYS.idleMinutes, String(n));
+  await setSetting(TIME_KEYS.pauseMinutes, String(p));
   await setSetting(TIME_KEYS.suggestStart, input.suggestStart ? "1" : "0");
   return true;
 }
