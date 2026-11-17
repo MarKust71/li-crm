@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import {
+  ADDED_RANGES,
   PAGE_SIZE,
   listContacts,
   filtersQuery,
@@ -19,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { STAGES, STAGE_LABEL } from "@/lib/labels";
+import { SOURCE_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kontakty · li-crm" };
 
@@ -42,12 +43,15 @@ const COLUMNS: { label: string; key: SortKey; hint?: string }[] = [
   { label: "Etap", key: "stage" },
   { label: "Tagi", key: "tags", hint: "wg liczby tagów" },
   { label: "Ostatnia aktywność", key: "activity" },
+  { label: "Dodano", key: "added", hint: "data dodania do bazy; pierwsze kliknięcie: najnowsze na górze" },
 ];
 
 /** Kliknięcie: rosnąco → malejąco → bez sortowania (kolejność dodania) → rosnąco… Zmiana sortowania wraca na stronę 1. */
 function sortHref(f: ContactFilters, key: SortKey): string {
-  if (f.sort !== key) return pageHref({ ...f, sort: key, dir: "asc" }, 1);
-  if (f.dir === "asc") return pageHref({ ...f, sort: key, dir: "desc" }, 1);
+  // "Dodano" zaczyna od najnowszych (malejąco), reszta od rosnąco
+  const [one, two] = key === "added" ? (["desc", "asc"] as const) : (["asc", "desc"] as const);
+  if (f.sort !== key) return pageHref({ ...f, sort: key, dir: one }, 1);
+  if (f.dir === one) return pageHref({ ...f, sort: key, dir: two }, 1);
   return pageHref({ ...f, sort: "", dir: "" }, 1);
 }
 
@@ -96,7 +100,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   const hasFilters = Boolean(
-    filters.q || filters.location || filters.occupation || filters.stage || filters.tag || filters.otw || filters.thread || filters.archived !== "active",
+    filters.q || filters.location || filters.occupation || filters.stage || filters.source || filters.added || filters.tag || filters.otw || filters.thread || filters.archived !== "active",
   );
 
   const active: string[] = [];
@@ -104,6 +108,8 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   if (filters.location) active.push(`Lokalizacja: ${filters.location}`);
   if (filters.occupation) active.push(`Zajęcie: ${filters.occupation}`);
   if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
+  if (filters.source) active.push(`Źródło: ${SOURCE_LABEL[filters.source]}`);
+  if (filters.added) active.push(`Dodano: ${ADDED_RANGES.find((r) => r.value === filters.added)!.label}`);
   if (filters.tag) active.push(`Tag: ${filters.tag}`);
   if (filters.otw) active.push("Open to work");
   if (filters.thread) active.push(filters.thread === "with" ? "Z wątkiem" : "Bez wątku");
@@ -134,7 +140,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
         </summary>
         {/* key z aktualnymi filtrami: po "Wyczyść" lub zmianie adresu pola formularza są tworzone od nowa (defaultValue nie nadpisuje wpisanego już tekstu) */}
         <form
-          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.tag, filters.otw, filters.thread, filters.archived])}
+          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.source, filters.added, filters.tag, filters.otw, filters.thread, filters.archived])}
           className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3"
           method="get"
           action="/contacts"
@@ -178,6 +184,28 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             </NativeSelect>
           </div>
           <div className={fieldWrap}>
+            <Label htmlFor="source">Źródło</Label>
+            <NativeSelect id="source" name="source" defaultValue={filters.source}>
+              <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              {Object.entries(SOURCE_LABEL).map(([value, label]) => (
+                <NativeSelectOption key={value} value={value}>
+                  {label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
+            <Label htmlFor="added">Dodano</Label>
+            <NativeSelect id="added" name="added" defaultValue={filters.added}>
+              <NativeSelectOption value="">Kiedykolwiek</NativeSelectOption>
+              {ADDED_RANGES.map((r) => (
+                <NativeSelectOption key={r.value} value={r.value}>
+                  {r.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className={fieldWrap}>
             <Label htmlFor="tag">Tag</Label>
             <NativeSelect id="tag" name="tag" defaultValue={filters.tag}>
               <NativeSelectOption value="">Wszystkie</NativeSelectOption>
@@ -212,7 +240,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", tag: "", otw: false, thread: "", archived: "active" }, 1)}>Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", source: "", added: "", tag: "", otw: false, thread: "", archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>
@@ -289,11 +317,15 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                   </div>
                 </TableCell>
                 <TableCell>{c.lastActivity ? dateFormat.format(c.lastActivity) : "—"}</TableCell>
+                <TableCell className="whitespace-normal">
+                  <div>{dateFormat.format(c.createdAt)}</div>
+                  <div className="text-xs text-muted-foreground">{SOURCE_LABEL[c.source]}</div>
+                </TableCell>
               </TableRow>
             ))}
             {contacts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Żaden kontakt nie pasuje do filtrów.
                 </TableCell>
               </TableRow>

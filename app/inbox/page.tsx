@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { filtersQuery, parseFilters } from "@/lib/contacts";
 import { CANDIDATE_PAGE_SIZE, candidateCounts, listCandidates, parseCandidateFilters, type CandidateFilters } from "@/lib/candidates";
 import { acceptCandidatesAction, rejectCandidatesAction, restoreCandidatesAction } from "./actions";
 
@@ -66,7 +67,12 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
       {added !== null && (
         <Alert>
           <AlertDescription>
-            Dodano kontaktów: {added}.{already ? ` Pominięto ${already}: te osoby są już kontaktami.` : ""}
+            Dodano kontaktów: {added}.{already ? ` Pominięto ${already}: te osoby są już kontaktami.` : ""}{" "}
+            {added > 0 && (
+              <Link href={`/contacts?${filtersQuery(parseFilters({ source: "PYMK", added: "today", sort: "added", dir: "desc" }), 1)}`} className="underline">
+                Pokaż dodane
+              </Link>
+            )}
           </AlertDescription>
         </Alert>
       )}

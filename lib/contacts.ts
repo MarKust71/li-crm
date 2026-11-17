@@ -1,15 +1,25 @@
-import type { Prisma, Stage } from "@prisma/client";
+import type { Prisma, Source, Stage } from "@prisma/client";
 import { prisma } from "./prisma";
 import { compareNames, parseSearch } from "./contacts-search";
-import { STAGES } from "./labels";
+import { addDays, parseDateInput, todayWarsaw } from "./dates";
+import { SOURCE_LABEL, STAGES } from "./labels";
 
 export const PAGE_SIZE = 50;
 
 export type ArchivedFilter = "active" | "only" | "all";
 
-export const SORT_KEYS = ["name", "occupation", "stage", "tags", "activity"] as const;
+export const SORT_KEYS = ["name", "occupation", "stage", "tags", "activity", "added"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 export type SortDir = "asc" | "desc";
+
+/** Kiedy kontakt dodano do bazy (createdAt): dziś, ostatnie 7 / 30 dni (liczone od północy czasu warszawskiego). */
+export const ADDED_RANGES = [
+  { value: "today", label: "Dziś", days: 1 },
+  { value: "7d", label: "Ostatnie 7 dni", days: 7 },
+  { value: "30d", label: "Ostatnie 30 dni", days: 30 },
+] as const;
+export type AddedRange = (typeof ADDED_RANGES)[number]["value"];
+const SOURCES = Object.keys(SOURCE_LABEL) as Source[];
 
 export type ContactFilters = {
   /** Imię, nazwisko i adres profilu. */
@@ -17,6 +27,10 @@ export type ContactFilters = {
   location: string;
   occupation: string;
   stage: Stage | "";
+  /** Skąd kontakt pochodzi (Contact.source). */
+  source: Source | "";
+  /** Dodany do bazy w tym zakresie (Contact.createdAt). */
+  added: AddedRange | "";
   tag: string;
   otw: boolean;
   /** Wątek LinkedIn: tylko kontakty z zapisanym wątkiem / tylko bez niego. */
@@ -36,6 +50,8 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 export function parseFilters(params: RawParams): ContactFilters {
   const stage = first(params.stage);
   const archived = first(params.archived);
+  const source = first(params.source);
+  const added = first(params.added);
   const page = Number.parseInt(first(params.page), 10);
   const sort = first(params.sort);
   const validSort = SORT_KEYS.includes(sort as SortKey);
@@ -44,6 +60,8 @@ export function parseFilters(params: RawParams): ContactFilters {
     location: first(params.location).trim().slice(0, 100),
     occupation: first(params.occupation).trim().slice(0, 100),
     stage: STAGES.some((s) => s.value === stage) ? (stage as Stage) : "",
+    source: SOURCES.includes(source as Source) ? (source as Source) : "",
+    added: ADDED_RANGES.some((r) => r.value === added) ? (added as AddedRange) : "",
     tag: first(params.tag).slice(0, 200),
     otw: first(params.otw) === "1",
     thread: first(params.thread) === "with" ? "with" : first(params.thread) === "without" ? "without" : "",
@@ -68,6 +86,12 @@ function buildWhere(f: ContactFilters): Prisma.ContactWhereInput {
     and.push({ OR: groups.map((g) => ({ AND: g.map(term) })) });
   }
   if (f.stage) and.push({ stage: f.stage });
+  if (f.source) and.push({ source: f.source });
+  if (f.added) {
+    const days = ADDED_RANGES.find((r) => r.value === f.added)!.days;
+    const since = parseDateInput(addDays(todayWarsaw(), -(days - 1)));
+    if (since) and.push({ createdAt: { gte: since } });
+  }
   if (f.tag) and.push({ tags: { some: { tag: { name: f.tag } } } });
   if (f.otw) and.push({ openToWork: true });
   if (f.thread === "with") and.push({ threadUrl: { not: null } });
@@ -84,6 +108,8 @@ const SELECT = {
   location: true,
   profileUrl: true,
   threadUrl: true,
+  source: true,
+  createdAt: true,
   stage: true,
   direction: true,
   openToWork: true,
@@ -114,8 +140,10 @@ function toRow(r: Row, lastActivity: Date | null) {
  * Sortowania po nazwie, etapie i tagach robimy w pamięci (idsByColumns): baza ma kolację en_US, która źle układa polskie litery
  * (np. "Ł"), a kolejność w aplikacji nie zależy od ustawień bazy (lokalnej i produkcyjnej).
  */
-function orderByFor(): Prisma.ContactOrderByWithRelationInput[] {
-  return [{ createdAt: "asc" }, { id: "asc" }];
+function orderByFor(f?: ContactFilters): Prisma.ContactOrderByWithRelationInput[] {
+  // "Dodano" sortujemy w bazie po createdAt (id dla stabilności); pozostałe przypadki to kolejność dodania rosnąco
+  const dir = f?.sort === "added" && f.dir === "desc" ? "desc" : "asc";
+  return [{ createdAt: dir }, { id: dir }];
 }
 
 // Ostatnia aktywność: najnowsze zdarzenie z prawdziwą datą (bez znaczników dateUnknown, np. 2000-01-01).
@@ -140,7 +168,7 @@ export async function listContacts(f: ContactFilters) {
 
   const rows = await prisma.contact.findMany({
     where,
-    orderBy: orderByFor(),
+    orderBy: orderByFor(f),
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     select: SELECT,
@@ -245,7 +273,7 @@ async function allIds(f: ContactFilters): Promise<string[]> {
   if (f.sort === "activity") return (await idsByActivity(f, where)).ids;
   if (f.sort === "occupation") return idsByOccupation(f, where);
   if (f.sort === "name" || f.sort === "stage" || f.sort === "tags") return idsByColumns(f, where);
-  return (await prisma.contact.findMany({ where, orderBy: orderByFor(), select: { id: true } })).map((r) => r.id);
+  return (await prisma.contact.findMany({ where, orderBy: orderByFor(f), select: { id: true } })).map((r) => r.id);
 }
 
 /** Sąsiedzi kontaktu na liście o danych filtrach i sortowaniu; null, gdy kontaktu nie ma na tej liście. */
@@ -263,6 +291,8 @@ export function filtersQuery(f: ContactFilters, page: number): string {
   if (f.location) p.set("location", f.location);
   if (f.occupation) p.set("occupation", f.occupation);
   if (f.stage) p.set("stage", f.stage);
+  if (f.source) p.set("source", f.source);
+  if (f.added) p.set("added", f.added);
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
   if (f.thread) p.set("thread", f.thread);
