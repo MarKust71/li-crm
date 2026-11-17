@@ -51,6 +51,7 @@ enum Stage {
 enum ArchiveReason {
   NO_CONVERSATION   // nie życzy sobie rozmów
   INVITE_REJECTED   // zaproszenie przestało być "pending", osoba znów 2./3. stopnia
+  DECISION_MADE     // decyzja podjęta (np. po rozmowie), kontakt zamknięty
   OTHER
 }
 

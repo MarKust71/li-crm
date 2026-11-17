@@ -55,6 +55,10 @@ Schemat bazy: `prisma/schema.prisma`.
   odwołany = usunięcie wydarzenia) wynika z historii kontaktu (`meetingOutcome`). `FOLLOW_UP` wymaga terminu i odbytego BOM
   (`BOM_COMPLETED`) i nie zmienia etapu. Usunięcie takiego zdarzenia zostawia `CalendarTombstone`, żeby n8n skasował wydarzenie.
 
+- Decyzja zamyka kontakt: dodanie `DECISION_YES` / `DECISION_NO` (w `addEventTx`, więc z UI i z kalendarza) archiwizuje kontakt z powodem
+  `DECISION_MADE` ("Decyzja podjęta") i anuluje jego otwarte przypomnienia (`setArchivedTx`, wpis `contact.archived` z `auto: true`).
+  Już zarchiwizowany zostaje przy swoim powodzie i dacie. Usunięcie zdarzenia decyzji NIE przywraca kontaktu (robi się to ręcznie).
+
 - Przypomnienia po "Zapytano o otwartość na rozmowę" (`ASKED_OPEN`, `applyEventAutomations` w `lib/reminders.ts`): trzy automatyczne
   (`source = AUTO`, `kind = REMINDER`) po 7 dniach, 4 tygodniach (28 dni) i 6 miesiącach od daty zdarzenia, z gotową treścią w `note`
   (`followUp*Message` w `lib/invite-message.ts`; zwrot z `salutation` wpisany w chwili utworzenia, bez zwrotu pomijany, forma męska
