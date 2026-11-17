@@ -1,5 +1,6 @@
 "use client";
 
+import { Pause, Play } from "lucide-react";
 import { useActionState } from "react";
 import { pauseFromBarAction, quickStopAction, resumeFromBarAction, type QuickStopState } from "@/app/time/actions";
 import { Elapsed } from "@/components/elapsed";
@@ -94,7 +95,9 @@ export function RunningTimer({ entryId, startedAt, pausedAt, pausedSeconds, acti
     </AlertDialog>
     <form action={pausedAt ? resumeFromBarAction : pauseFromBarAction}>
       <input type="hidden" name="id" value={entryId} />
-      <SubmitButton size="sm" variant="outline">{pausedAt ? "Wznów" : "Pauza"}</SubmitButton>
+      <SubmitButton size="icon-sm" variant="outline" aria-label={pausedAt ? "Wznów" : "Pauza"} title={pausedAt ? "Wznów" : "Pauza"}>
+        {pausedAt ? <Play aria-hidden /> : <Pause aria-hidden />}
+      </SubmitButton>
     </form>
     </>
   );

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Pause, Play } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
@@ -304,7 +305,9 @@ function RunningCard({
           {running.pausedSeconds > 0 && <span className="text-sm text-muted-foreground">przerwy: {Math.round(running.pausedSeconds / 60)} min</span>}
           <form action={running.pausedAt ? resumeFromBarAction : pauseFromBarAction}>
             <input type="hidden" name="id" value={running.id} />
-            <Button type="submit" size="sm" variant="outline">{running.pausedAt ? "Wznów" : "Pauza"}</Button>
+            <Button type="submit" size="icon-sm" variant="outline" aria-label={running.pausedAt ? "Wznów" : "Pauza"} title={running.pausedAt ? "Wznów" : "Pauza"}>
+              {running.pausedAt ? <Play aria-hidden /> : <Pause aria-hidden />}
+            </Button>
           </form>
         </div>
         <form action={stopAction} className="grid gap-3 sm:grid-cols-2">
