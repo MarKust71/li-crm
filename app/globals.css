@@ -155,5 +155,47 @@
   button:disabled {
     cursor: not-allowed;
   }
+
+  /* Łagodne zmiany stanu: kolory linków, przycisków i nagłówków sekcji przy najechaniu/fokusie.
+     Reguła jest w warstwie base, więc klasy narzędziowe (np. transition-all w shadcn) mają pierwszeństwo. */
+  a,
+  button,
+  summary,
+  [role="button"] {
+    transition-property: color, background-color, border-color, opacity, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+}
+
+/* Rozwijane sekcje (<details>: filtry, multiwybór, karta kontaktu, przypomnienia): wysokość płynnie rośnie i maleje.
+   `interpolate-size` pozwala animować do `auto`; `::details-content` to treść bez nagłówka (Chrome/Edge/Safari 18.4+,
+   w starszych przeglądarkach sekcja po prostu otwiera się natychmiast). */
+:root {
+  interpolate-size: allow-keywords;
+}
+
+details::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition:
+    block-size 220ms ease,
+    content-visibility 220ms allow-discrete;
+}
+
+details[open]::details-content {
+  block-size: auto;
+}
+
+/* Kto prosi system o mniej ruchu, nie dostaje żadnych animacji ani przejść. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  details::details-content {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 

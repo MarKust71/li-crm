@@ -149,7 +149,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
 
       <details className="group shrink-0 rounded-lg border" open={hasFilters}>
         <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
-          <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+          <ChevronRight className="size-4 transition-transform duration-200 ease-out group-open:rotate-90" aria-hidden />
           Filtry
           <span className="flex flex-wrap gap-1 font-normal">
             {active.map((a) => (
@@ -276,7 +276,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
         {contacts.length > 0 && (
           <details className="multi group shrink-0 rounded-lg border" open={multiOpen}>
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
-              <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+              <ChevronRight className="size-4 transition-transform duration-200 ease-out group-open:rotate-90" aria-hidden />
               Multiwybór
             </summary>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t p-3">
@@ -311,7 +311,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
         <Table containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
-              <TableHead className={`${stickyHead} hidden w-8 group-has-[.multi[open]]/multi:table-cell`}>
+              <TableHead className={`${stickyHead} hidden w-8 group-has-[.multi[open]]/multi:table-cell group-has-[.multi[open]]/multi:animate-in group-has-[.multi[open]]/multi:fade-in-0 group-has-[.multi[open]]/multi:duration-300`}>
                 <span className="sr-only">Zaznacz</span>
               </TableHead>
               {COLUMNS.map((c) => {
@@ -341,7 +341,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           <TableBody>
             {contacts.map((c) => (
               <TableRow key={c.id} className={c.archived ? "opacity-60" : undefined}>
-                <TableCell className="hidden w-8 group-has-[.multi[open]]/multi:table-cell">
+                <TableCell className="hidden w-8 group-has-[.multi[open]]/multi:table-cell group-has-[.multi[open]]/multi:animate-in group-has-[.multi[open]]/multi:fade-in-0 group-has-[.multi[open]]/multi:duration-300">
                   <input type="checkbox" name="ids" value={c.id} aria-label={`Zaznacz: ${c.name}`} className="size-4 accent-primary" />
                 </TableCell>
                 <TableCell className="whitespace-normal">
