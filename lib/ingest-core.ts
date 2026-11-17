@@ -142,3 +142,47 @@ export function reportText(r: IngestReport): string {
   lines.push("", link("Kontakty", `${SITE}/contacts`));
   return lines.join("\n").slice(0, 3900);
 }
+
+// ───────────── Strona profilu (content6.js, source "profile_page") ─────────────
+
+export type ProfileInput = { name: string; profileUrl: unknown; location: string | null; occupation: string | null; openToWork: boolean };
+
+/** Walidacja ładunku z n8n: `{ source: "profile_page", results: [{ name, profileUrl, location, occupation, openToWork? }] }`. Jeden profil na żądanie (bierzemy pierwszą pozycję). */
+export function parseProfilePayload(body: unknown): { ok: true; item: ProfileInput } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "body" };
+  const b = body as Record<string, unknown>;
+  if (b.source !== "profile_page") return { ok: false, error: "source" };
+  if (!Array.isArray(b.results) || b.results.length === 0) return { ok: false, error: "results" };
+  const o = b.results[0] && typeof b.results[0] === "object" ? (b.results[0] as Record<string, unknown>) : null;
+  const name = text(o?.name, 200);
+  if (!o || !name) return { ok: false, error: "name" };
+  // rozszerzenie dodaje pole tylko przy wykryciu statusu ("PRAWDA"); brak pola nie oznacza, że status zniknął
+  const openToWork = o.openToWork === true || (typeof o.openToWork === "string" && /^(prawda|true)$/i.test(o.openToWork.trim()));
+  return { ok: true, item: { name, profileUrl: o.profileUrl, location: text(o.location, 200), occupation: text(o.occupation, 300), openToWork } };
+}
+
+export type ProfileReport = {
+  outcome: "created" | "updated" | "unchanged" | "skipped-url" | "skipped-name";
+  name: string;
+  profileUrl: string | null;
+  /** nazwy pól uzupełnionych / zmienionych w istniejącym kontakcie (location, occupation, openToWork) */
+  filled: string[];
+  openToWork: boolean;
+  archived: boolean;
+};
+
+const FIELD_PL: Record<string, string> = { location: "lokalizacja", occupation: "zajęcie", openToWork: "open to work" };
+
+export function profileReportText(r: ProfileReport): string {
+  const who = r.profileUrl ? link(r.name, r.profileUrl) : r.name;
+  const lines = ["👤 <b>li-crm: dane profilu</b>"];
+  if (r.outcome === "skipped-url") lines.push(`Pominięto: brak poprawnego adresu profilu (${r.name})`);
+  else if (r.outcome === "skipped-name") lines.push(`Pominięto: imię niezgodne z adresem profilu`, who);
+  else if (r.outcome === "created") lines.push(`Nowy kontakt: ${who}`);
+  else if (r.outcome === "updated") lines.push(`Zaktualizowano: ${who}`, `Uzupełniono: ${r.filled.map((f) => FIELD_PL[f] ?? f).join(", ")}`);
+  else lines.push(`Bez zmian: ${who}`);
+  if (r.openToWork) lines.push("🟢 Open to work");
+  if (r.archived) lines.push("Kontakt jest zarchiwizowany");
+  lines.push("", link("Kontakty", `${SITE}/contacts`));
+  return lines.join("\n").slice(0, 3900);
+}

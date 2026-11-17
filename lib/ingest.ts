@@ -1,6 +1,6 @@
 import { logActivity } from "./activity-log";
 import { cleanOccupation } from "./contacts";
-import { nameMatchesProfile, parseViewedAgo, resolveScrapedAt, reportText, type IngestReport, type ViewerInput } from "./ingest-core";
+import { nameMatchesProfile, parseViewedAgo, profileReportText, resolveScrapedAt, reportText, type IngestReport, type ProfileInput, type ProfileReport, type ViewerInput } from "./ingest-core";
 import { normalizeProfileUrl } from "./profile-url";
 import { prisma } from "./prisma";
 
@@ -102,4 +102,55 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
     details: { received: report.received, skipped: report.skipped, created: report.created.length, occupationFilled: report.occupationFilled, viewsAdded: report.viewsAdded, duplicates: report.duplicates, unclearName: report.unclearName, archivedViewers: report.archivedViewers },
   });
   return { report, message: reportText(report) };
+}
+
+/**
+ * Przyjęcie danych ze strony profilu (content6.js, przez n8n). Nowa osoba (z pewnym imieniem) → kontakt „Zebrany”, `source = PROFILE`.
+ * Znany kontakt: uzupełniamy puste „Lokalizację” i „Zajęcie” (niepustych nie nadpisujemy), „Open to work” tylko włączamy
+ * (rozszerzenie wysyła to pole wyłącznie przy wykryciu, więc jego brak niczego nie wyłącza). Zarchiwizowany zostaje zarchiwizowany.
+ * Bez zdarzeń, więc etap się nie zmienia. Ponowienie tego samego żądania jest bezpieczne (unikalny adres, wypełniamy tylko braki).
+ */
+export async function ingestProfile(item: ProfileInput): Promise<{ report: ProfileReport; message: string }> {
+  const profileUrl = normalizeProfileUrl(item.profileUrl);
+  const base = { name: item.name, profileUrl, filled: [] as string[], openToWork: item.openToWork, archived: false };
+  let report: ProfileReport;
+  if (!profileUrl) {
+    report = { ...base, outcome: "skipped-url" };
+  } else {
+    try {
+      const occupation = cleanOccupation(item.occupation);
+      const existing = await prisma.contact.findUnique({ where: { profileUrl }, select: { id: true, name: true, location: true, occupation: true, openToWork: true, archived: true } });
+      if (existing) {
+        const data: { location?: string; occupation?: string; openToWork?: boolean } = {};
+        if (item.location && !existing.location?.trim()) data.location = item.location;
+        if (occupation && !cleanOccupation(existing.occupation)) data.occupation = occupation;
+        if (item.openToWork && !existing.openToWork) data.openToWork = true;
+        const filled = Object.keys(data);
+        if (filled.length) await prisma.contact.update({ where: { id: existing.id }, data });
+        report = { ...base, name: existing.name, filled, archived: existing.archived, outcome: filled.length ? "updated" : "unchanged" };
+        if (filled.length) await logActivity({ source: "SYNC", action: "contact.profile_updated", contactId: existing.id, summary: `Dane profilu: ${existing.name} (uzupełniono: ${filled.join(", ")})` });
+      } else if (!nameMatchesProfile(item.name, profileUrl)) {
+        report = { ...base, outcome: "skipped-name" };
+      } else {
+        const created = await prisma.contact.createManyAndReturn({
+          data: [{ profileUrl, name: item.name, location: item.location, occupation, openToWork: item.openToWork, source: "PROFILE" as const }],
+          skipDuplicates: true,
+          select: { id: true, name: true },
+        });
+        report = { ...base, outcome: created.length ? "created" : "unchanged" };
+        if (created.length) await logActivity({ source: "SYNC", action: "contact.created", contactId: created[0].id, summary: `Nowy kontakt ze strony profilu: ${created[0].name}` });
+      }
+    } catch (e) {
+      await logActivity({ source: "SYNC", action: "ingest.profile", level: "ERROR", summary: `Dane profilu: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
+      throw e;
+    }
+  }
+  await logActivity({
+    source: "SYNC",
+    action: "ingest.profile",
+    level: report.outcome.startsWith("skipped") ? "WARN" : "INFO",
+    summary: `Dane profilu: ${report.outcome}${report.filled.length ? ` (${report.filled.join(", ")})` : ""}`,
+    details: { outcome: report.outcome, filled: report.filled, openToWork: report.openToWork, archived: report.archived },
+  });
+  return { report, message: profileReportText(report) };
 }
