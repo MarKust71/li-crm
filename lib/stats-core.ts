@@ -80,6 +80,30 @@ export function resolvePeriod(input: { period?: string; from?: string; to?: stri
   return { preset, from: addDays(today, 1 - n), to: tomorrow, label: `ostatnie ${n} dni` };
 }
 
+// ───────────────────────── dashboard ─────────────────────────
+
+export const DASH_WINDOWS = ["today", "week", "month", "year"] as const;
+export type DashWindow = (typeof DASH_WINDOWS)[number];
+/** rolling = wstecz od dziś (7/30/365 dni); calendar = od poniedziałku / 1. dnia miesiąca / 1 stycznia do dziś. */
+export type DashMode = "rolling" | "calendar";
+
+export const DASH_LABEL: Record<DashMode, Record<DashWindow, string>> = {
+  rolling: { today: "Dziś", week: "Ostatnie 7 dni", month: "Ostatnie 30 dni", year: "Ostatnie 365 dni" },
+  calendar: { today: "Dziś", week: "Ten tydzień", month: "Ten miesiąc", year: "Ten rok" },
+};
+
+/** Okresy dashboardu (pierwszy dzień włącznie, `to` = dzień po dzisiejszym). */
+export function dashboardPeriods(today: string, mode: DashMode): Record<DashWindow, Period> {
+  const to = addDays(today, 1);
+  const from: Record<DashWindow, string> =
+    mode === "rolling"
+      ? { today, week: addDays(today, -6), month: addDays(today, -29), year: addDays(today, -364) }
+      : { today, week: bucketStart(today, "week"), month: `${today.slice(0, 7)}-01`, year: `${today.slice(0, 4)}-01-01` };
+  return Object.fromEntries(
+    DASH_WINDOWS.map((w) => [w, { preset: "custom" as const, from: from[w], to, label: DASH_LABEL[mode][w] }]),
+  ) as Record<DashWindow, Period>;
+}
+
 /** Domyślna rozdzielczość szeregu: dni do ~5 tygodni, tygodnie do ~roku, dalej miesiące. */
 export function pickGranularity(p: Period, requested: string | undefined, earliest: string | null): Gran {
   if (requested === "day" || requested === "week" || requested === "month") return requested;

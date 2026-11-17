@@ -5,7 +5,8 @@ import { prisma } from "./prisma";
 import { todayWarsaw, warsawToUtc } from "./dates";
 import {
   SERIES_STEPS, STEPS, TAG_STEPS, TIMING_PAIRS, buckets, pickGranularity, resolvePeriod,
-  type Gran, type Period, type StepKey,
+  DASH_WINDOWS, dashboardPeriods,
+  type DashMode, type DashWindow, type Gran, type Period, type StepKey,
 } from "./stats-core";
 
 // Statystyki liczone w zapytaniach z danych (CLAUDE.md: wartości liczone nie są przechowywane).
@@ -185,3 +186,48 @@ export async function getStats(f: StatsFilters): Promise<Stats> {
   };
 }
 
+
+// ───────────────────────── dashboard ─────────────────────────
+
+export type DashCell = { invites: number; accepted: number; asked: number };
+export type Dashboard = { mode: DashMode; cohort: boolean; today: string; windows: Record<DashWindow, { period: Period; cell: DashCell }> };
+
+/**
+ * Dashboard: tylko zaproszenia wysłane (kontakty OUTBOUND, INVITE_SENT), bez tagów, osoby a nie zdarzenia.
+ * Bez kohorty: każdy krok liczony niezależnie w okresie. Ścisła kohorta: przyjęcie wymaga zaproszenia w tym samym okresie,
+ * pytanie o rozmowę wymaga przyjęcia i zaproszenia w tym samym okresie (więc procenty nie przekraczają 100%).
+ */
+export async function getDashboard(mode: DashMode, cohort: boolean): Promise<Dashboard> {
+  await connection();
+  const today = todayWarsaw();
+  const periods = dashboardPeriods(today, mode);
+  const rows = await Promise.all(
+    DASH_WINDOWS.map((w) => prisma.$queryRaw<{ invites: number; accepted: number; accepted_c: number; asked: number; asked_c: number }[]>`
+      WITH p AS (
+        SELECT e."contactId",
+          bool_or(e."type"::text = 'INVITE_SENT') AS inv,
+          bool_or(e."type"::text = 'ACCEPTED') AS acc,
+          bool_or(e."type"::text = 'ASKED_OPEN') AS ask
+        FROM "ContactEvent" e JOIN "Contact" c ON c."id" = e."contactId"
+        WHERE c."direction"::text = 'OUTBOUND' AND e."dateUnknown" = false
+          AND e."type"::text IN ('INVITE_SENT', 'ACCEPTED', 'ASKED_OPEN')
+          AND ${inPeriod(Prisma.sql`e."occurredAt"`, periods[w])}
+        GROUP BY e."contactId")
+      SELECT COUNT(*) FILTER (WHERE inv)::int AS invites,
+             COUNT(*) FILTER (WHERE acc)::int AS accepted,
+             COUNT(*) FILTER (WHERE acc AND inv)::int AS accepted_c,
+             COUNT(*) FILTER (WHERE ask)::int AS asked,
+             COUNT(*) FILTER (WHERE ask AND acc AND inv)::int AS asked_c
+      FROM p`),
+  );
+  const windows = Object.fromEntries(
+    DASH_WINDOWS.map((w, i) => {
+      const r = rows[i][0];
+      const cell: DashCell = cohort
+        ? { invites: r.invites, accepted: r.accepted_c, asked: r.asked_c }
+        : { invites: r.invites, accepted: r.accepted, asked: r.asked };
+      return [w, { period: periods[w], cell }];
+    }),
+  ) as Dashboard["windows"];
+  return { mode, cohort, today, windows };
+}

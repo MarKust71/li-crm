@@ -9,12 +9,15 @@ import pkg from "../package.json";
 import { countDue } from "@/lib/reminders";
 import { getRunningEntry, listActivityTypes } from "@/lib/time";
 
-type Props = { current: "contacts" | "today" | "time" | "stats" | "log" | "settings" | "security" };
+type Props = { current: "dashboard" | "contacts" | "today" | "time" | "stats" | "log" | "settings" | "security" };
 
 /** Wspólna nawigacja; gdy trwa sesja czasu pracy, pokazuje jej licznik na każdej stronie. */
 export function SiteNav({ current }: Props) {
   return (
     <nav className="flex flex-wrap items-center gap-1" aria-label="Główna nawigacja">
+      <Button asChild size="sm" variant={current === "dashboard" ? "secondary" : "ghost"}>
+        <Link href="/dashboard">Dashboard</Link>
+      </Button>
       <Button asChild size="sm" variant={current === "contacts" ? "secondary" : "ghost"}>
         <Link href="/contacts">Kontakty</Link>
       </Button>
