@@ -105,8 +105,20 @@ model Candidate {
   seenCount   Int             @default(1) // ile razy zebrano ją w importach
   firstSeenAt DateTime        @default(now())
   lastSeenAt  DateTime        @default(now())
+  views       CandidateView[]
 
   @@index([status, lastSeenAt])
+}
+
+// Wyświetlenia mojego profilu przez osobę z poczekalni (lista oglądających). Po dodaniu osoby jako kontaktu
+// zamieniają się w zdarzenia VIEWED_MY_PROFILE, żeby historia wyświetleń nie ginęła.
+model CandidateView {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  viewedAt    DateTime
+
+  @@index([candidateId, viewedAt])
 }
 
 // ─────────────── Lejek: zdarzenia zamiast ~40 kolumn ───────────────

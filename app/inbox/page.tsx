@@ -10,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { filtersQuery, parseFilters } from "@/lib/contacts";
-import { CANDIDATE_PAGE_SIZE, candidateCounts, listCandidates, parseCandidateFilters, type CandidateFilters } from "@/lib/candidates";
+import { SOURCE_LABEL } from "@/lib/labels";
+import { CANDIDATE_PAGE_SIZE, CANDIDATE_SOURCES, candidateCounts, listCandidates, parseCandidateFilters, type CandidateFilters } from "@/lib/candidates";
 import { acceptCandidatesAction, rejectCandidatesAction, restoreCandidatesAction } from "./actions";
 
 export const metadata: Metadata = { title: "Poczekalnia · li-crm" };
@@ -25,6 +27,7 @@ function href(f: CandidateFilters, page = 1): string {
   if (f.status === "REJECTED") p.set("widok", "odrzucone");
   if (f.q) p.set("q", f.q);
   if (f.otw) p.set("otw", "1");
+  if (f.source) p.set("source", f.source);
   if (page > 1) p.set("page", String(page));
   const qs = p.toString();
   return qs ? `/inbox?${qs}` : "/inbox";
@@ -55,7 +58,7 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
   const filters = parseCandidateFilters(sp);
   const [{ rows, total, pages, page }, counts] = await Promise.all([listCandidates(filters), candidateCounts()]);
   const rejectedView = filters.status === "REJECTED";
-  const hasFilters = !!(filters.q || filters.otw);
+  const hasFilters = !!(filters.q || filters.otw || filters.source);
   const added = num(sp.dodano);
   const already = num(sp.juz);
   const rejected = num(sp.odrzucono);
@@ -69,7 +72,7 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
           <AlertDescription>
             Dodano kontaktów: {added}.{already ? ` Pominięto ${already}: te osoby są już kontaktami.` : ""}{" "}
             {added > 0 && (
-              <Link href={`/contacts?${filtersQuery(parseFilters({ source: "PYMK", added: "today", sort: "added", dir: "desc" }), 1)}`} className="underline">
+              <Link href={`/contacts?${filtersQuery(parseFilters({ added: "today", sort: "added", dir: "desc" }), 1)}`} className="underline">
                 Pokaż dodane
               </Link>
             )}
@@ -81,7 +84,7 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
       {sp.brak && <Alert variant="destructive"><AlertDescription>Nic nie zaznaczono.</AlertDescription></Alert>}
 
       <p className="text-sm text-muted-foreground">
-        Osoby z importu „People you may know” czekają tu na Twoją decyzję: dodaj te, którymi chcesz się zająć (powstanie kontakt „Zebrany”), resztę odrzuć.
+        Osoby z importów (People you may know, lista oglądających profil) czekają tu na Twoją decyzję: dodaj te, którymi chcesz się zająć (powstanie kontakt „Zebrany”), resztę odrzuć.
         Kontaktów, które już są w bazie, poczekalnia nie dotyczy.
       </p>
 
@@ -100,6 +103,17 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
           <Label htmlFor="q" className="text-xs text-muted-foreground">Szukaj w imieniu i zajęciu</Label>
           <Input id="q" type="search" name="q" defaultValue={filters.q} maxLength={100} />
         </div>
+        <div className={field}>
+          <Label htmlFor="source" className="text-xs text-muted-foreground">Źródło</Label>
+          <NativeSelect id="source" name="source" defaultValue={filters.source}>
+            <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+            {CANDIDATE_SOURCES.map((x) => (
+              <NativeSelectOption key={x} value={x}>
+                {SOURCE_LABEL[x]}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
         <label className="flex items-center gap-2 pb-2 text-sm">
           <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} />
           Tylko Open to work
@@ -108,7 +122,7 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
           <Button type="submit">Filtruj</Button>
           {hasFilters && (
             <Button asChild variant="ghost">
-              <Link href={href({ ...filters, q: "", otw: false })}>Wyczyść</Link>
+              <Link href={href({ ...filters, q: "", otw: false, source: "" })}>Wyczyść</Link>
             </Button>
           )}
         </div>
@@ -156,6 +170,8 @@ async function InboxContent({ searchParams }: { searchParams: SP }) {
                         {c.name}
                       </a>
                       {c.openToWork && <Badge variant="secondary">Open to work</Badge>}
+                      <Badge variant="outline">{SOURCE_LABEL[c.source]}</Badge>
+                      {c._count.views > 0 && <Badge variant="outline">Oglądał profil: {c._count.views}×</Badge>}
                     </span>
                     <span className="block break-words text-muted-foreground">{c.occupation ?? "—"}</span>
                   </span>
