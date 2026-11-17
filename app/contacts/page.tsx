@@ -15,12 +15,16 @@ import {
 import { InfoTip } from "@/components/info-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SelectAll } from "@/components/select-all";
 import { SiteNav } from "@/components/site-nav";
+import { SubmitButton } from "@/components/submit-button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { bulkArchiveAction, bulkUnarchiveAction } from "./actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SOURCE_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
+import { ARCHIVE_REASONS, SOURCE_LABEL, STAGES, STAGE_LABEL } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Kontakty · li-crm" };
 
@@ -95,7 +99,10 @@ export default function ContactsPage({ searchParams }: { searchParams: SearchPar
 }
 
 async function ContactsContent({ searchParams }: { searchParams: SearchParams }) {
-  const filters = parseFilters(await searchParams);
+  const sp = await searchParams;
+  const filters = parseFilters(sp);
+  const num = (v: string | string[] | undefined) => (typeof v === "string" && /^\d{1,4}$/.test(v) ? Number(v) : 0);
+  const done = { archived: num(sp.zarchiwizowano), restored: num(sp.przywrocono), skipped: num(sp.pominieto) };
   const [{ contacts, total, page, pages }, tags] = await Promise.all([listContacts(filters), listTagNames()]);
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
@@ -125,6 +132,18 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           ? `sortowanie: ${COLUMNS.find((c) => c.key === filters.sort)?.label} ${filters.dir === "desc" ? "malejąco" : "rosnąco"}`
           : "kolejność dodania"}
       </p>
+
+      {(done.archived > 0 || done.restored > 0 || sp.brak || sp.powod || done.skipped > 0) && (
+        <Alert className="shrink-0" variant={sp.brak || sp.powod ? "destructive" : "default"}>
+          <AlertDescription>
+            {sp.brak && "Nic nie zaznaczono."}
+            {sp.powod && "Wybierz powód archiwizacji."}
+            {done.archived > 0 && `Zarchiwizowano: ${done.archived}. `}
+            {done.restored > 0 && `Przywrócono: ${done.restored}. `}
+            {done.skipped > 0 && `Pominięto (już w tym stanie): ${done.skipped}.`}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <details className="group shrink-0 rounded-lg border" open={hasFilters}>
         <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
@@ -249,10 +268,43 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
 
       {/* Lista przewija się we własnym obszarze, więc filtry i stronicowanie są zawsze widoczne,
           a nagłówek tabeli przykleja się do góry tego obszaru. */}
+      <form className="flex min-h-0 flex-1 flex-col gap-3">
+        <input type="hidden" name="back" value={pageHref(filters, page)} />
+        {contacts.length > 0 && (
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-background p-3">
+            <SelectAll />
+            {filters.archived !== "only" && (
+              <>
+                <NativeSelect name="reason" defaultValue="NO_CONVERSATION" aria-label="Powód archiwizacji" className="w-auto">
+                  {ARCHIVE_REASONS.map((r) => (
+                    <NativeSelectOption key={r.value} value={r.value}>
+                      {r.label}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <input type="checkbox" name="cancelReminders" defaultChecked className="size-4 accent-primary" />
+                  Anuluj otwarte przypomnienia
+                </label>
+                <SubmitButton formAction={bulkArchiveAction} variant="outline" pendingLabel="Archiwizuję…">
+                  Archiwizuj zaznaczone
+                </SubmitButton>
+              </>
+            )}
+            {filters.archived !== "active" && (
+              <SubmitButton formAction={bulkUnarchiveAction} variant="outline" pendingLabel="Przywracam…">
+                Przywróć zaznaczone
+              </SubmitButton>
+            )}
+          </div>
+        )}
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
         <Table containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
+              <TableHead className={`${stickyHead} w-8`}>
+                <span className="sr-only">Zaznacz</span>
+              </TableHead>
               {COLUMNS.map((c) => {
                 const active = filters.sort === c.key;
                 const asc = active && filters.dir === "asc";
@@ -280,6 +332,9 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           <TableBody>
             {contacts.map((c) => (
               <TableRow key={c.id} className={c.archived ? "opacity-60" : undefined}>
+                <TableCell className="w-8">
+                  <input type="checkbox" name="ids" value={c.id} aria-label={`Zaznacz: ${c.name}`} className="size-4 accent-primary" />
+                </TableCell>
                 <TableCell className="whitespace-normal">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Link href={cardHref(c.id, filters, page)} className="font-semibold hover:underline">
@@ -325,7 +380,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             ))}
             {contacts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Żaden kontakt nie pasuje do filtrów.
                 </TableCell>
               </TableRow>
@@ -333,6 +388,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           </TableBody>
         </Table>
       </div>
+      </form>
 
       {pages > 1 && (
         <nav className="flex shrink-0 items-center justify-between gap-3 text-sm" aria-label="Strony">

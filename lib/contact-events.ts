@@ -144,6 +144,17 @@ export async function setArchived(contactId: string, reason: ArchiveReason | nul
   });
 }
 
+/**
+ * Masowa archiwizacja (reason) albo przywrócenie (reason = null) zaznaczonych kontaktów.
+ * Kontakty już w docelowym stanie pomijamy, żeby nie nadpisać pierwotnego powodu i daty archiwizacji.
+ * Każdy kontakt ma własną transakcję i wpis w dzienniku (jak przy pojedynczej zmianie).
+ */
+export async function bulkSetArchived(ids: string[], reason: ArchiveReason | null, opts: { cancelReminders?: boolean } = {}) {
+  const rows = await prisma.contact.findMany({ where: { id: { in: ids }, archived: reason === null }, select: { id: true } });
+  for (const { id } of rows) await setArchived(id, reason, opts);
+  return { changed: rows.length, skipped: ids.length - rows.length };
+}
+
 export async function setOpenToWork(contactId: string, value: boolean) {
   await prisma.$transaction(async (tx) => {
     await tx.contact.update({ where: { id: contactId }, data: { openToWork: value } });
