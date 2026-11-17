@@ -47,7 +47,7 @@ export async function resolveActivityId(activityId: string | null, newName: stri
 export async function getRunningEntry() {
   return prisma.timeEntry.findFirst({
     where: { endedAt: null },
-    select: { id: true, startedAt: true, count: true, note: true, activityType: { select: { id: true, name: true } } },
+    select: { id: true, startedAt: true, pausedAt: true, pausedSeconds: true, count: true, note: true, activityType: { select: { id: true, name: true } } },
   });
 }
 
@@ -84,20 +84,60 @@ type EntryInput = {
 };
 
 export async function stopSession(id: string, input: Partial<Pick<EntryInput, "startedAt">> & Omit<EntryInput, "startedAt">): Promise<TimeResult> {
-  const entry = await prisma.timeEntry.findUnique({ where: { id }, select: { startedAt: true, endedAt: true } });
+  const entry = await prisma.timeEntry.findUnique({ where: { id }, select: { startedAt: true, endedAt: true, pausedAt: true, pausedSeconds: true } });
   if (!entry || entry.endedAt) return { ok: false, error: "notfound" };
   const startedAt = input.startedAt ?? entry.startedAt;
-  if (input.endedAt < startedAt) return { ok: false, error: "end_before_start" };
+  // zatrzymanie w pauzie kończy wpis w chwili jej rozpoczęcia: pauza nie wchodzi do wpisu
+  const endedAt = entry.pausedAt && input.endedAt > entry.pausedAt ? entry.pausedAt : input.endedAt;
+  if (endedAt < startedAt) return { ok: false, error: "end_before_start" };
   // warunek endedAt: null chroni przed zakończeniem tej samej sesji dwa razy
   const res = await prisma.timeEntry.updateMany({
     where: { id, endedAt: null },
-    data: { startedAt, endedAt: input.endedAt, activityTypeId: input.activityId, count: input.count, note: input.note },
+    data: { startedAt, endedAt, pausedAt: null, activityTypeId: input.activityId, count: input.count, note: input.note },
   });
   if (res.count === 1) {
-    const mins = Math.round((input.endedAt.getTime() - startedAt.getTime()) / 60_000);
+    const mins = Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 60_000 - entry.pausedSeconds / 60));
     await logActivity({ source: "UI", action: "time.stopped", summary: `Zakończono sesję czasu pracy (${mins} min)`, details: { entryId: id, minutes: mins } });
   }
   return res.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
+}
+
+// ───────────────────────── pauza ─────────────────────────
+
+/** Czas pauzy/wznowienia: nie w przyszłości i nie przed `min`. */
+const clampTime = (at: Date, min: Date) => new Date(Math.min(Date.now(), Math.max(at.getTime(), min.getTime())));
+
+/** Wstrzymuje trwającą sesję od chwili `at` (np. ostatniej aktywności). */
+export async function pauseSession(id: string, at: Date = new Date()): Promise<TimeResult> {
+  const e = await prisma.timeEntry.findUnique({ where: { id }, select: { startedAt: true, endedAt: true, pausedAt: true } });
+  if (!e || e.endedAt) return { ok: false, error: "notfound" };
+  if (e.pausedAt) return { ok: false, error: "paused" };
+  const pausedAt = clampTime(at, e.startedAt);
+  const res = await prisma.timeEntry.updateMany({ where: { id, endedAt: null, pausedAt: null }, data: { pausedAt } });
+  if (res.count === 1) await logActivity({ source: "UI", action: "time.paused", summary: "Wstrzymano sesję czasu pracy", details: { entryId: id, pausedAt: pausedAt.toISOString() } });
+  return res.count === 1 ? { ok: true } : { ok: false, error: "paused" };
+}
+
+/** Wznawia sesję od chwili `at`; czas pauzy dolicza do przerw. */
+export async function resumeSession(id: string, at: Date = new Date()): Promise<TimeResult> {
+  const e = await prisma.timeEntry.findUnique({ where: { id }, select: { endedAt: true, pausedAt: true } });
+  if (!e || e.endedAt) return { ok: false, error: "notfound" };
+  if (!e.pausedAt) return { ok: false, error: "notpaused" };
+  const resumedAt = clampTime(at, e.pausedAt);
+  const seconds = Math.round((resumedAt.getTime() - e.pausedAt.getTime()) / 1000);
+  // warunek pausedAt chroni przed podwójnym wznowieniem (dwa kliknięcia policzyłyby przerwę dwa razy)
+  const res = await prisma.timeEntry.updateMany({
+    where: { id, endedAt: null, pausedAt: e.pausedAt },
+    data: { pausedAt: null, pausedSeconds: { increment: seconds } },
+  });
+  if (res.count === 1) await logActivity({ source: "UI", action: "time.resumed", summary: `Wznowiono sesję czasu pracy (przerwa ${Math.round(seconds / 60)} min)`, details: { entryId: id, pauseSeconds: seconds } });
+  return res.count === 1 ? { ok: true } : { ok: false, error: "notpaused" };
+}
+
+/** Czas netto trwającej sesji w sekundach w chwili `nowMs` (bez przerw; w pauzie stoi). */
+export function netSeconds(e: { startedAt: Date; pausedAt: Date | null; pausedSeconds: number }, nowMs: number): number {
+  const end = e.pausedAt ? e.pausedAt.getTime() : nowMs;
+  return Math.max(0, (end - e.startedAt.getTime()) / 1000 - e.pausedSeconds);
 }
 
 /**
@@ -107,7 +147,7 @@ export async function stopSession(id: string, input: Partial<Pick<EntryInput, "s
  */
 export async function updateEntry(
   id: string,
-  input: { startedAt?: Date; endedAt?: Date; activityId: string | null; count: number | null; note: string | null },
+  input: { startedAt?: Date; endedAt?: Date; pausedMinutes?: number; activityId: string | null; count: number | null; note: string | null },
 ): Promise<TimeResult> {
   const entry = await prisma.timeEntry.findUnique({ where: { id }, select: { startedAt: true, endedAt: true } });
   if (!entry || !entry.endedAt) return { ok: false, error: "notfound" };
@@ -116,7 +156,10 @@ export async function updateEntry(
   if ((input.startedAt || input.endedAt) && endedAt < startedAt) return { ok: false, error: "end_before_start" };
   const res = await prisma.timeEntry.updateMany({
     where: { id, endedAt: { not: null } },
-    data: { startedAt, endedAt, activityTypeId: input.activityId, count: input.count, note: input.note },
+    data: {
+      startedAt, endedAt, activityTypeId: input.activityId, count: input.count, note: input.note,
+      ...(input.pausedMinutes !== undefined ? { pausedSeconds: input.pausedMinutes * 60 } : {}),
+    },
   });
   if (res.count === 1) await logActivity({ source: "UI", action: "time.updated", summary: "Zmieniono wpis czasu pracy", details: { entryId: id } });
   return res.count === 1 ? { ok: true } : { ok: false, error: "notfound" };
@@ -139,17 +182,17 @@ export async function listEntries(requestedPage: number) {
     orderBy: [{ startedAt: "desc" }, { id: "asc" }],
     skip: (page - 1) * ENTRIES_PAGE_SIZE,
     take: ENTRIES_PAGE_SIZE,
-    select: { id: true, startedAt: true, endedAt: true, count: true, note: true, activityType: { select: { id: true, name: true } } },
+    select: { id: true, startedAt: true, endedAt: true, pausedSeconds: true, count: true, note: true, activityType: { select: { id: true, name: true } } },
   });
   return { total, page, pages, entries };
 }
 
 // ───────────────────────── podsumowania (liczone w zapytaniach) ─────────────────────────
 // Wartości wyliczane nie są przechowywane (CLAUDE.md). Liczą się tylko zakończone wpisy z poprawnym czasem
-// (endedAt >= startedAt); wpis przypisany jest do dnia/miesiąca swojego początku (czas warszawski).
+// (endedAt >= startedAt), czas netto (bez przerw); wpis przypisany jest do dnia/miesiąca swojego początku (czas warszawski).
 
 const LOCAL_START = Prisma.sql`("startedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Warsaw'`;
-const SECS = Prisma.sql`EXTRACT(EPOCH FROM ("endedAt" - "startedAt"))`;
+const SECS = Prisma.sql`GREATEST(0, EXTRACT(EPOCH FROM ("endedAt" - "startedAt")) - "pausedSeconds")`;
 const VALID = Prisma.sql`"endedAt" IS NOT NULL AND "endedAt" >= "startedAt"`;
 
 export async function periodTotals() {

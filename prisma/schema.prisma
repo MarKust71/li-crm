@@ -196,6 +196,8 @@ model TimeEntry {
   id             String        @id @default(cuid())
   startedAt      DateTime
   endedAt        DateTime?     // null = sesja w toku (przycisk start/stop)
+  pausedAt       DateTime?     // null = nie w pauzie; inaczej od kiedy trwa bieżąca pauza (sesja w toku)
+  pausedSeconds  Int           @default(0) // suma zakończonych przerw; czas netto = koniec − początek − przerwy
   activityTypeId String?
   activityType   ActivityType? @relation(fields: [activityTypeId], references: [id])
   count          Int?          // "akceptacja (3)" → 3

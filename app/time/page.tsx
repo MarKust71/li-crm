@@ -26,7 +26,7 @@ import {
   type ActivityRow,
   type PeriodRow,
 } from "@/lib/time";
-import { deleteEntryAction, startAction, stopAction, updateEntryAction } from "./actions";
+import { deleteEntryAction, pauseFromBarAction, resumeFromBarAction, startAction, stopAction, updateEntryAction } from "./actions";
 
 export const metadata: Metadata = { title: "Czas pracy · li-crm" };
 
@@ -35,6 +35,7 @@ const ERRORS: Record<string, string> = {
   notfound: "Nie znaleziono wpisu (mógł zostać już zmieniony lub usunięty).",
   date: "Niepoprawna data lub godzina.",
   end_before_start: "Koniec nie może być wcześniejszy niż początek.",
+  pause: "Przerwy: liczba minut od 0 do 99999.",
   count: "Liczba sztuk musi być liczbą całkowitą od 0 do 100000.",
 };
 
@@ -122,7 +123,7 @@ async function TimeContent({ searchParams }: { searchParams: SearchParams }) {
             <ul className="flex flex-col gap-2">
               {list.entries.map((e) => {
                 const end = e.endedAt!;
-                const seconds = (end.getTime() - e.startedAt.getTime()) / 1000;
+                const seconds = (end.getTime() - e.startedAt.getTime()) / 1000 - e.pausedSeconds;
                 const startInitial = toDateTimeInput(e.startedAt);
                 const endInitial = toDateTimeInput(end);
                 return (
@@ -136,7 +137,10 @@ async function TimeContent({ searchParams }: { searchParams: SearchParams }) {
                           błędny czas
                         </Badge>
                       ) : (
-                        <span className="text-sm">{formatDuration(seconds)}</span>
+                        <span className="text-sm">
+                          {formatDuration(Math.max(0, seconds))}
+                          {e.pausedSeconds > 0 && <span className="text-muted-foreground"> (przerwy {Math.round(e.pausedSeconds / 60)} min)</span>}
+                        </span>
                       )}
                       <strong>
                         {e.activityType?.name ?? "(bez czynności)"}
@@ -152,6 +156,7 @@ async function TimeContent({ searchParams }: { searchParams: SearchParams }) {
                           <input type="hidden" name="page" value={list.page} />
                           <input type="hidden" name="startedAtInitial" value={startInitial} />
                           <input type="hidden" name="endedAtInitial" value={endInitial} />
+                          <input type="hidden" name="pausedMinutesInitial" value={Math.round(e.pausedSeconds / 60)} />
                           <div className={field}>
                             <Label htmlFor={`s-${e.id}`}>Początek</Label>
                             <Input id={`s-${e.id}`} type="datetime-local" name="startedAt" defaultValue={startInitial} required />
@@ -159,6 +164,10 @@ async function TimeContent({ searchParams }: { searchParams: SearchParams }) {
                           <div className={field}>
                             <Label htmlFor={`e-${e.id}`}>Koniec</Label>
                             <Input id={`e-${e.id}`} type="datetime-local" name="endedAt" defaultValue={endInitial} required />
+                          </div>
+                          <div className={field}>
+                            <Label htmlFor={`p-${e.id}`}>Przerwy (min)</Label>
+                            <Input id={`p-${e.id}`} name="pausedMinutes" inputMode="numeric" defaultValue={Math.round(e.pausedSeconds / 60)} className="w-28" />
                           </div>
                           <ActivityFields activities={activities} selectedId={e.activityType?.id ?? ""} idPrefix={e.id} />
                           <div className={field}>
@@ -289,8 +298,14 @@ function RunningCard({
       </CardHeader>
       <CardContent>
         <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <Elapsed startedAt={running.startedAt.getTime()} className="font-mono text-4xl tabular-nums" />
+          <Elapsed startedAt={running.startedAt.getTime()} pausedAt={running.pausedAt?.getTime() ?? null} pausedSeconds={running.pausedSeconds} className="font-mono text-4xl tabular-nums" />
           <span className="text-sm text-muted-foreground">od {dateTimeFmt.format(running.startedAt)}</span>
+          {running.pausedAt && <Badge variant="outline">wstrzymana od {dateTimeFmt.format(running.pausedAt)}</Badge>}
+          {running.pausedSeconds > 0 && <span className="text-sm text-muted-foreground">przerwy: {Math.round(running.pausedSeconds / 60)} min</span>}
+          <form action={running.pausedAt ? resumeFromBarAction : pauseFromBarAction}>
+            <input type="hidden" name="id" value={running.id} />
+            <Button type="submit" size="sm" variant="outline">{running.pausedAt ? "Wznów" : "Pauza"}</Button>
+          </form>
         </div>
         <form action={stopAction} className="grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="id" value={running.id} />

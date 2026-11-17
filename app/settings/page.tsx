@@ -134,8 +134,12 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
           Aplikacja zna tylko swoje zmiany (dziennik), więc tylko ich używa do podpowiedzi. Zatrzymanie sesji zawsze zatwierdzasz sam.
         </p>
         {sp.timeSaved && <Alert><AlertDescription>Zapisano ustawienia czasu pracy.</AlertDescription></Alert>}
-        {sp.error === "time" && <Alert variant="destructive"><AlertDescription>Niepoprawny próg: 0 (wyłączone) albo 15–{MAX_IDLE_MINUTES} minut.</AlertDescription></Alert>}
+        {sp.error === "time" && <Alert variant="destructive"><AlertDescription>Niepoprawny próg: 0 (wyłączone), pauza 5–{MAX_IDLE_MINUTES} minut, zakończenie 15–{MAX_IDLE_MINUTES} minut.</AlertDescription></Alert>}
         <form action={saveTimeSettingsAction} className="flex flex-col gap-3 rounded-lg border p-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="pauseMinutes">Zaproponuj wstrzymanie sesji po tylu minutach bez zmian w aplikacji (0 = wyłączone)</Label>
+            <Input id="pauseMinutes" name="pauseMinutes" type="number" min={0} max={MAX_IDLE_MINUTES} defaultValue={t.pauseMinutes} className="w-28" />
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="idleMinutes">Zaproponuj zakończenie sesji po tylu minutach bez zmian w aplikacji (0 = wyłączone)</Label>
             <Input id="idleMinutes" name="idleMinutes" type="number" min={0} max={MAX_IDLE_MINUTES} defaultValue={t.idleMinutes} className="w-28" />

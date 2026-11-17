@@ -5,6 +5,8 @@ export const MAX_LOOKBACK_HOURS = 12; // nie cofamy początku sesji dalej niż t
 
 export type TimeBar =
   | { kind: "idle"; lastActivityAt: Date; startedAt: Date }
+  | { kind: "pause"; lastActivityAt: Date; startedAt: Date }
+  | { kind: "resume"; from: Date; pausedAt: Date }
   | { kind: "start"; from: Date }
   | null;
 
@@ -22,25 +24,44 @@ export function burstStart(timesDesc: Date[], gapMs: number): Date | null {
 export type DecideInput = {
   now: Date;
   /** Trwająca sesja albo null. */
-  running: { startedAt: Date } | null;
+  /** resumedAt: ostatnie wznowienie po pauzie (liczy się jak aktywność, żeby pasek nie proponował pauzy zaraz po wznowieniu). */
+  running: { startedAt: Date; pausedAt?: Date | null; resumedAt?: Date | null } | null;
   idleMinutes: number;
+  /** Próg propozycji wstrzymania (0 = wyłączone). */
+  pauseMinutes: number;
   suggestStart: boolean;
   /** Czasy aktywności użytkownika (bez czasu pracy, ustawień i dziennika), malejąco. */
   activityTimesDesc: Date[];
   /** Koniec ostatniej zakończonej sesji. */
   lastEndedAt: Date | null;
   snoozeIdleUntil: number | null;
+  snoozePauseUntil: number | null;
   snoozeStartUntil: number | null;
 };
 
 export function decideTimeBar(i: DecideInput): TimeBar {
   const now = i.now.getTime();
+  if (i.running?.pausedAt) {
+    // sesja wstrzymana: gdy w aplikacji coś się dzieje, podpowiedz wznowienie (jak "włącz rejestrowanie")
+    if (!i.suggestStart || (i.snoozeStartUntil ?? 0) > now) return null;
+    const pausedAt = i.running.pausedAt;
+    const candidates = i.activityTimesDesc.filter((t) => t.getTime() > pausedAt.getTime());
+    const newest = candidates[0];
+    if (!newest || now - newest.getTime() > START_WINDOW_MIN * 60_000) return null;
+    const gap = (i.idleMinutes > 0 ? i.idleMinutes : 120) * 60_000;
+    const from = burstStart(candidates, gap);
+    return from ? { kind: "resume", from, pausedAt } : null;
+  }
   if (i.running) {
-    if (i.idleMinutes <= 0 || (i.snoozeIdleUntil ?? 0) > now) return null;
     const startedAt = i.running.startedAt;
+    const floor = i.running.resumedAt && i.running.resumedAt > startedAt ? i.running.resumedAt : startedAt;
     const newest = i.activityTimesDesc[0];
-    const last = newest && newest.getTime() >= startedAt.getTime() ? newest : startedAt;
-    return now - last.getTime() >= i.idleMinutes * 60_000 ? { kind: "idle", lastActivityAt: last, startedAt } : null;
+    const last = newest && newest.getTime() >= floor.getTime() ? newest : floor;
+    const idleFor = now - last.getTime();
+    // dłuższa bezczynność = propozycja zakończenia (ma pierwszeństwo), krótsza = propozycja wstrzymania
+    if (i.idleMinutes > 0 && (i.snoozeIdleUntil ?? 0) <= now && idleFor >= i.idleMinutes * 60_000) return { kind: "idle", lastActivityAt: last, startedAt };
+    if (i.pauseMinutes > 0 && (i.snoozePauseUntil ?? 0) <= now && idleFor >= i.pauseMinutes * 60_000) return { kind: "pause", lastActivityAt: last, startedAt };
+    return null;
   }
   if (!i.suggestStart || (i.snoozeStartUntil ?? 0) > now) return null;
   const candidates = i.activityTimesDesc.filter((t) => !i.lastEndedAt || t.getTime() > i.lastEndedAt.getTime());

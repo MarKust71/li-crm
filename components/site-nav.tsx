@@ -65,6 +65,8 @@ async function RunningBadge() {
     <RunningTimer
       entryId={running.id}
       startedAt={running.startedAt.getTime()}
+      pausedAt={running.pausedAt?.getTime() ?? null}
+      pausedSeconds={running.pausedSeconds}
       activityId={running.activityType?.id ?? null}
       activityName={running.activityType?.name ?? null}
       activities={activities.map((a) => ({ id: a.id, name: a.name }))}
