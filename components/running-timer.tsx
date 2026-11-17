@@ -43,7 +43,6 @@ export function RunningTimer({ entryId, startedAt, pausedAt, pausedSeconds, acti
         >
           <span className={`size-2 rounded-full ${pausedAt ? "bg-muted-foreground" : "animate-pulse bg-destructive"}`} aria-hidden />
           <Elapsed startedAt={startedAt} pausedAt={pausedAt} pausedSeconds={pausedSeconds} className="font-mono tabular-nums" />
-          {pausedAt && <span className="text-muted-foreground">pauza</span>}
           {activityName && <span className="max-w-40 truncate text-muted-foreground">{activityName}</span>}
         </button>
       </AlertDialogTrigger>
