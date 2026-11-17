@@ -85,7 +85,7 @@ function decodeURIComponentSafe(v: string): string {
   }
 }
 
-export type ViewerInput = { name: string; profileUrl: unknown; occupation: string | null; viewedAt: string | null };
+export type ViewerInput = { name: string; profileUrl: unknown; occupation: string | null; viewedAt: string | null; openToWork: OtwReading };
 
 export const MAX_VIEWERS = 200;
 
@@ -107,7 +107,7 @@ export function parseViewersPayload(
       invalid++;
       continue;
     }
-    items.push({ name, profileUrl: o.profileUrl, occupation: text(o.occupation, 300), viewedAt: text(o.viewedAt, 100) });
+    items.push({ name, profileUrl: o.profileUrl, occupation: text(o.occupation, 300), viewedAt: text(o.viewedAt, 100), openToWork: parseOpenToWork(o.openToWork) });
   }
   return { ok: true, items, invalid, scrapedAt: b.scrapedAt };
 }
@@ -116,30 +116,48 @@ export type IngestReport = {
   received: number;
   /** pozycje bez poprawnego imienia lub adresu profilu */
   skipped: number;
-  created: { name: string; profileUrl: string }[];
+  /** nowe osoby, które trafiły do poczekalni (nie są jeszcze kontaktami) */
+  queued: { name: string; profileUrl: string; openToWork: boolean }[];
+  /** z nich z „Open to work” */
+  queuedOpenToWork: number;
+  /** osoby, które już czekały w poczekalni */
+  alreadyQueued: number;
+  /** osoby odrzucone wcześniej w poczekalni (pominięte) */
+  rejected: number;
   /** kontakty, którym uzupełniono puste „Zajęcie” */
   occupationFilled: number;
+  /** nowe wyświetlenia kontaktów (zdarzenia) */
   viewsAdded: number;
+  /** wyświetlenia zapisane przy osobach z poczekalni (staną się zdarzeniami po dodaniu kontaktu) */
+  queuedViews: number;
   /** to samo wyświetlenie było już zapisane */
   duplicates: number;
   /** nowe osoby pominięte, bo imię z rozszerzenia nie pasuje do adresu profilu (zob. nameMatchesProfile) */
   unclearName: number;
   /** wśród oglądających były kontakty zarchiwizowane (zdarzenie zapisano, archiwum bez zmian) */
   archivedViewers: number;
+  /** kontakty, którym włączono / wyłączono „Open to work” wg odczytu */
+  openToWorkSet: number;
+  openToWorkCleared: number;
 };
 
 export function reportText(r: IngestReport): string {
   const lines = ["👀 <b>li-crm: kto oglądał profil</b>", `Sprawdzono: ${r.received - r.skipped} z ${r.received}`];
-  lines.push(`Nowe kontakty: ${r.created.length}`, `Nowe wyświetlenia: ${r.viewsAdded}${r.duplicates ? ` (już zapisane, pominięte: ${r.duplicates})` : ""}`);
-  if (r.occupationFilled) lines.push(`Uzupełniono zajęcie: ${r.occupationFilled}`);
+  lines.push(`Do poczekalni: ${r.queued.length}${r.queuedOpenToWork ? ` (w tym Open to work: ${r.queuedOpenToWork})` : ""}`);
+  if (r.alreadyQueued) lines.push(`Już w poczekalni: ${r.alreadyQueued}`);
+  if (r.rejected) lines.push(`Odrzucone wcześniej (pominięte): ${r.rejected}`);
+  lines.push(`Nowe wyświetlenia: ${r.viewsAdded + r.queuedViews}${r.duplicates ? ` (już zapisane, pominięte: ${r.duplicates})` : ""}`);
+  if (r.openToWorkSet) lines.push(`Włączono Open to work u kontaktów: ${r.openToWorkSet}`);
+  if (r.openToWorkCleared) lines.push(`Wyłączono Open to work u kontaktów: ${r.openToWorkCleared}`);
+  if (r.occupationFilled) lines.push(`Uzupełniono zajęcie u kontaktów: ${r.occupationFilled}`);
   if (r.archivedViewers) lines.push(`Zarchiwizowani wśród oglądających: ${r.archivedViewers}`);
   if (r.skipped) lines.push(`Pominięto (brak imienia lub adresu): ${r.skipped}`);
   if (r.unclearName) lines.push(`Pominięto (imię niezgodne z adresem profilu): ${r.unclearName}`);
-  if (r.created.length) {
-    lines.push("", "<b>Nowe</b>", ...r.created.slice(0, 10).map((c) => `• ${link(c.name, c.profileUrl)}`));
-    if (r.created.length > 10) lines.push(`… i ${r.created.length - 10} więcej`);
+  if (r.queued.length) {
+    lines.push("", "<b>Nowe w poczekalni</b>", ...r.queued.slice(0, 10).map((c) => `• ${link(c.name, c.profileUrl)}${c.openToWork ? " 🟢" : ""}`));
+    if (r.queued.length > 10) lines.push(`… i ${r.queued.length - 10} więcej`);
   }
-  lines.push("", link("Kontakty", `${SITE}/contacts`));
+  lines.push("", link("Poczekalnia", `${SITE}/inbox`));
   return lines.join("\n").slice(0, 3900);
 }
 
