@@ -110,6 +110,8 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
     filters.q || filters.location || filters.occupation || filters.stage || filters.source || filters.added || filters.tag || filters.otw || filters.thread || filters.archived !== "active",
   );
 
+  const multiOpen = done.archived > 0 || done.restored > 0 || done.skipped > 0 || Boolean(sp.brak || sp.powod);
+
   const active: string[] = [];
   if (filters.q) active.push(`Szukaj: ${filters.q}`);
   if (filters.location) active.push(`Lokalizacja: ${filters.location}`);
@@ -268,10 +270,16 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
 
       {/* Lista przewija się we własnym obszarze, więc filtry i stronicowanie są zawsze widoczne,
           a nagłówek tabeli przykleja się do góry tego obszaru. */}
-      <form className="flex min-h-0 flex-1 flex-col gap-3">
+      {/* group/multi: kolumna z checkboxami jest widoczna tylko przy otwartym panelu „Multiwybór" (czysty CSS, bez JS) */}
+      <form className="group/multi flex min-h-0 flex-1 flex-col gap-3">
         <input type="hidden" name="back" value={pageHref(filters, page)} />
         {contacts.length > 0 && (
-          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-background p-3">
+          <details className="multi group shrink-0 rounded-lg border" open={multiOpen}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+              Multiwybór
+            </summary>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t p-3">
             <SelectAll />
             {filters.archived !== "only" && (
               <>
@@ -296,13 +304,14 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                 Przywróć zaznaczone
               </SubmitButton>
             )}
-          </div>
+            </div>
+          </details>
         )}
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
         <Table containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
-              <TableHead className={`${stickyHead} w-8`}>
+              <TableHead className={`${stickyHead} hidden w-8 group-has-[.multi[open]]/multi:table-cell`}>
                 <span className="sr-only">Zaznacz</span>
               </TableHead>
               {COLUMNS.map((c) => {
@@ -332,7 +341,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
           <TableBody>
             {contacts.map((c) => (
               <TableRow key={c.id} className={c.archived ? "opacity-60" : undefined}>
-                <TableCell className="w-8">
+                <TableCell className="hidden w-8 group-has-[.multi[open]]/multi:table-cell">
                   <input type="checkbox" name="ids" value={c.id} aria-label={`Zaznacz: ${c.name}`} className="size-4 accent-primary" />
                 </TableCell>
                 <TableCell className="whitespace-normal">
