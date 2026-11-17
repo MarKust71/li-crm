@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { SiteNav } from "@/components/site-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDashboard } from "@/lib/stats";
-import { DASH_WINDOWS, fmtPct, pct, type DashMode } from "@/lib/stats-core";
+import { getDashboard, type DashCell } from "@/lib/stats";
+import { fmtPct, pct, type DashMode } from "@/lib/stats-core";
 
 export const metadata: Metadata = { title: "Dashboard · li-crm" };
 
@@ -43,13 +43,13 @@ function Toggle({ options, current }: { options: { label: string; to: string; ac
 async function DashboardContent({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const mode: DashMode = one(sp.okres) === "calendar" ? "calendar" : "rolling";
-  const cohort = one(sp.kohorta) !== "0";
+  const cohort = one(sp.kohorta) === "1";
   const d = await getDashboard(mode, cohort);
 
-  const rows = [
-    { title: "Zaproszenia", value: (w: (typeof d.windows)[keyof typeof d.windows]) => ({ n: w.cell.invites, share: null as number | null }), note: "" },
-    { title: "Przyjęte zaproszenia", value: (w: (typeof d.windows)[keyof typeof d.windows]) => ({ n: w.cell.accepted, share: pct(w.cell.accepted, w.cell.invites) }), note: "zaproszeń" },
-    { title: "Zapytania o rozmowę", value: (w: (typeof d.windows)[keyof typeof d.windows]) => ({ n: w.cell.asked, share: pct(w.cell.asked, w.cell.accepted) }), note: "przyjętych" },
+  const steps = [
+    { title: "Zaproszenia", note: "", get: (c: DashCell) => ({ n: c.invites, share: null as number | null }) },
+    { title: "Przyjęte zaproszenia", note: "zaproszeń", get: (c: DashCell) => ({ n: c.accepted, share: pct(c.accepted, c.invites) }) },
+    { title: "Zapytania o rozmowę", note: "przyjętych", get: (c: DashCell) => ({ n: c.asked, share: pct(c.asked, c.accepted) }) },
   ];
 
   return (
@@ -65,8 +65,8 @@ async function DashboardContent({ searchParams }: { searchParams: SP }) {
         <Toggle
           current="Kohorta"
           options={[
-            { label: "Ścisła kohorta", to: href(mode, true), active: cohort },
             { label: "Wszystkie zdarzenia z okresu", to: href(mode, false), active: !cohort },
+            { label: "Ścisła kohorta", to: href(mode, true), active: cohort },
           ]}
         />
       </div>
@@ -76,31 +76,37 @@ async function DashboardContent({ searchParams }: { searchParams: SP }) {
           ? "Ścisła kohorta: przyjęcie liczy się tylko, gdy zaproszenie było w tym samym okresie; pytanie o rozmowę, gdy w tym okresie było też przyjęcie."
           : "Każdy krok liczony osobno w okresie, więc procenty mogą przekraczać 100%."}
       </p>
-      <div className="flex flex-col gap-3">
-        {rows.map((r) => (
-          <section key={r.title} aria-label={r.title}>
-            <h2 className="mb-1 text-sm font-medium text-muted-foreground">{r.title}</h2>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {DASH_WINDOWS.map((w) => {
-                const win = d.windows[w];
-                const v = r.value(win);
-                return (
-                  <Card key={w}>
-                    <CardHeader className="pb-1">
-                      <CardTitle className="text-sm font-normal text-muted-foreground">{win.period.label}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-3xl font-semibold tabular-nums">{v.n}</div>
-                      <div className="h-5 text-sm tabular-nums text-muted-foreground">
-                        {r.note ? `${fmtPct(v.share)} ${r.note}` : ""}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+      <div className="flex flex-col gap-4">
+        {d.windows.map((win) => {
+          return (
+            <section key={win.key} aria-label={win.period.label}>
+              <h2 className="mb-1 text-sm font-medium text-muted-foreground">
+                {win.period.label}
+                <span className="ml-2 font-normal tabular-nums">
+                  ({win.period.from === null ? `od początku danych – ${d.today}` : win.period.from === d.today ? d.today : `${win.period.from} – ${d.today}`})
+                </span>
+              </h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {steps.map((st) => {
+                  const v = st.get(win.cell);
+                  return (
+                    <Card key={st.title}>
+                      <CardHeader className="pb-1">
+                        <CardTitle className="text-sm font-normal text-muted-foreground">{st.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-semibold tabular-nums">{v.n}</div>
+                        <div className="h-5 text-sm tabular-nums text-muted-foreground">
+                          {st.note ? `${fmtPct(v.share)} ${st.note}` : ""}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
