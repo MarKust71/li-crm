@@ -61,6 +61,7 @@ export const ALL_EVENT_TYPES = Object.keys(EVENT_LABEL) as EventType[];
 export const ARCHIVE_REASONS: { value: ArchiveReason; label: string }[] = [
   { value: "NO_CONVERSATION", label: "Nie życzy sobie rozmów" },
   { value: "INVITE_REJECTED", label: "Zaproszenie odrzucone / nieaktywne" },
+  { value: "DECISION_MADE", label: "Decyzja podjęta" },
   { value: "OTHER", label: "Inny powód" },
 ];
 
