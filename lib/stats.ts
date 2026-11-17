@@ -5,7 +5,7 @@ import { prisma } from "./prisma";
 import { todayWarsaw, warsawToUtc } from "./dates";
 import {
   SERIES_STEPS, STEPS, TAG_STEPS, TIMING_PAIRS, buckets, pickGranularity, resolvePeriod,
-  DASH_WINDOWS, dashboardPeriods,
+  dashboardPeriods,
   type DashMode, type DashWindow, type Gran, type Period, type StepKey,
 } from "./stats-core";
 
@@ -190,7 +190,7 @@ export async function getStats(f: StatsFilters): Promise<Stats> {
 // ───────────────────────── dashboard ─────────────────────────
 
 export type DashCell = { invites: number; accepted: number; asked: number };
-export type Dashboard = { mode: DashMode; cohort: boolean; today: string; windows: Record<DashWindow, { period: Period; cell: DashCell }> };
+export type Dashboard = { mode: DashMode; cohort: boolean; today: string; windows: { key: DashWindow; period: Period; cell: DashCell }[] };
 
 /**
  * Dashboard: tylko zaproszenia wysłane (kontakty OUTBOUND, INVITE_SENT), bez tagów, osoby a nie zdarzenia.
@@ -202,7 +202,7 @@ export async function getDashboard(mode: DashMode, cohort: boolean): Promise<Das
   const today = todayWarsaw();
   const periods = dashboardPeriods(today, mode);
   const rows = await Promise.all(
-    DASH_WINDOWS.map((w) => prisma.$queryRaw<{ invites: number; accepted: number; accepted_c: number; asked: number; asked_c: number }[]>`
+    periods.map(({ period }) => prisma.$queryRaw<{ invites: number; accepted: number; accepted_c: number; asked: number; asked_c: number }[]>`
       WITH p AS (
         SELECT e."contactId",
           bool_or(e."type"::text = 'INVITE_SENT') AS inv,
@@ -211,7 +211,7 @@ export async function getDashboard(mode: DashMode, cohort: boolean): Promise<Das
         FROM "ContactEvent" e JOIN "Contact" c ON c."id" = e."contactId"
         WHERE c."direction"::text = 'OUTBOUND' AND e."dateUnknown" = false
           AND e."type"::text IN ('INVITE_SENT', 'ACCEPTED', 'ASKED_OPEN')
-          AND ${inPeriod(Prisma.sql`e."occurredAt"`, periods[w])}
+          AND ${inPeriod(Prisma.sql`e."occurredAt"`, period)}
         GROUP BY e."contactId")
       SELECT COUNT(*) FILTER (WHERE inv)::int AS invites,
              COUNT(*) FILTER (WHERE acc)::int AS accepted,
@@ -220,14 +220,12 @@ export async function getDashboard(mode: DashMode, cohort: boolean): Promise<Das
              COUNT(*) FILTER (WHERE ask AND acc AND inv)::int AS asked_c
       FROM p`),
   );
-  const windows = Object.fromEntries(
-    DASH_WINDOWS.map((w, i) => {
-      const r = rows[i][0];
-      const cell: DashCell = cohort
-        ? { invites: r.invites, accepted: r.accepted_c, asked: r.asked_c }
-        : { invites: r.invites, accepted: r.accepted, asked: r.asked };
-      return [w, { period: periods[w], cell }];
-    }),
-  ) as Dashboard["windows"];
+  const windows = periods.map(({ key, period }, i) => {
+    const r = rows[i][0];
+    const cell: DashCell = cohort
+      ? { invites: r.invites, accepted: r.accepted_c, asked: r.asked_c }
+      : { invites: r.invites, accepted: r.accepted, asked: r.asked };
+    return { key, period, cell };
+  });
   return { mode, cohort, today, windows };
 }

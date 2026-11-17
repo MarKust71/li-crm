@@ -82,26 +82,36 @@ export function resolvePeriod(input: { period?: string; from?: string; to?: stri
 
 // ───────────────────────── dashboard ─────────────────────────
 
-export const DASH_WINDOWS = ["today", "week", "month", "year"] as const;
-export type DashWindow = (typeof DASH_WINDOWS)[number];
+export type DashWindow = "today" | "week" | "month" | "year" | "fiscal" | "all";
 /** rolling = wstecz od dziś (7/30/365 dni); calendar = od poniedziałku / 1. dnia miesiąca / 1 stycznia do dziś. */
 export type DashMode = "rolling" | "calendar";
 
-export const DASH_LABEL: Record<DashMode, Record<DashWindow, string>> = {
-  rolling: { today: "Dziś", week: "Ostatnie 7 dni", month: "Ostatnie 30 dni", year: "Ostatnie 365 dni" },
-  calendar: { today: "Dziś", week: "Ten tydzień", month: "Ten miesiąc", year: "Ten rok" },
+/** Początek roku biznesowego: 1 września (bieżącego roku, a od stycznia do sierpnia poprzedniego). */
+export const FISCAL_START_MONTH = 9;
+
+export const DASH_LABEL: Record<DashMode, Partial<Record<DashWindow, string>>> = {
+  rolling: { today: "Dziś", week: "Ostatnie 7 dni", month: "Ostatnie 30 dni", year: "Ostatnie 365 dni", fiscal: "Od początku roku biznesowego", all: "Cały okres" },
+  calendar: { today: "Dziś", week: "Ten tydzień", month: "Ten miesiąc", year: "Ten rok", fiscal: "Ten rok biznesowy", all: "Cały okres" },
 };
 
-/** Okresy dashboardu (pierwszy dzień włącznie, `to` = dzień po dzisiejszym). */
-export function dashboardPeriods(today: string, mode: DashMode): Record<DashWindow, Period> {
+export type DashPeriod = { key: DashWindow; period: Period };
+
+/** Okresy dashboardu w kolejności wyświetlania (pierwszy dzień włącznie, `to` = dzień po dzisiejszym). Rok biznesowy w obu trybach (inna etykieta). */
+export function dashboardPeriods(today: string, mode: DashMode): DashPeriod[] {
   const to = addDays(today, 1);
-  const from: Record<DashWindow, string> =
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  const fiscalYear = m >= FISCAL_START_MONTH ? y : y - 1;
+  const fiscalFrom = `${fiscalYear}-${String(FISCAL_START_MONTH).padStart(2, "0")}-01`;
+  // "all": od początku danych (from = null), niezależnie od trybu
+  const from: [DashWindow, string | null][] =
     mode === "rolling"
-      ? { today, week: addDays(today, -6), month: addDays(today, -29), year: addDays(today, -364) }
-      : { today, week: bucketStart(today, "week"), month: `${today.slice(0, 7)}-01`, year: `${today.slice(0, 4)}-01-01` };
-  return Object.fromEntries(
-    DASH_WINDOWS.map((w) => [w, { preset: "custom" as const, from: from[w], to, label: DASH_LABEL[mode][w] }]),
-  ) as Record<DashWindow, Period>;
+      ? [["today", today], ["week", addDays(today, -6)], ["month", addDays(today, -29)], ["year", addDays(today, -364)], ["fiscal", fiscalFrom], ["all", null]]
+      : [
+          ["today", today], ["week", bucketStart(today, "week")], ["month", `${today.slice(0, 7)}-01`], ["year", `${y}-01-01`],
+          ["fiscal", fiscalFrom], ["all", null],
+        ];
+  return from.map(([key, f]) => ({ key, period: { preset: "custom" as const, from: f, to, label: DASH_LABEL[mode][key]! } }));
 }
 
 /** Domyślna rozdzielczość szeregu: dni do ~5 tygodni, tygodnie do ~roku, dalej miesiące. */
