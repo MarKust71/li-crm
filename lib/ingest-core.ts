@@ -145,7 +145,21 @@ export function reportText(r: IngestReport): string {
 
 // ───────────── Strona profilu (content6.js, source "profile_page") ─────────────
 
-export type ProfileInput = { name: string; profileUrl: unknown; location: string | null; occupation: string | null; openToWork: boolean };
+/** Status „Open to work” z rozszerzenia: true/false = odczytano na stronie, null = brak pola (nie odczytywano), więc niczego nie zmieniamy. */
+export type OtwReading = boolean | null;
+
+export function parseOpenToWork(v: unknown): OtwReading {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "prawda" || t === "true") return true;
+    if (t === "fałsz" || t === "falsz" || t === "false") return false;
+  }
+  return null;
+}
+
+export type ProfileInput = { name: string; profileUrl: unknown; location: string | null; occupation: string | null; openToWork: OtwReading };
 
 /** Walidacja ładunku z n8n: `{ source: "profile_page", results: [{ name, profileUrl, location, occupation, openToWork? }] }`. Jeden profil na żądanie (bierzemy pierwszą pozycję). */
 export function parseProfilePayload(body: unknown): { ok: true; item: ProfileInput } | { ok: false; error: string } {
@@ -156,9 +170,7 @@ export function parseProfilePayload(body: unknown): { ok: true; item: ProfileInp
   const o = b.results[0] && typeof b.results[0] === "object" ? (b.results[0] as Record<string, unknown>) : null;
   const name = text(o?.name, 200);
   if (!o || !name) return { ok: false, error: "name" };
-  // rozszerzenie dodaje pole tylko przy wykryciu statusu ("PRAWDA"); brak pola nie oznacza, że status zniknął
-  const openToWork = o.openToWork === true || (typeof o.openToWork === "string" && /^(prawda|true)$/i.test(o.openToWork.trim()));
-  return { ok: true, item: { name, profileUrl: o.profileUrl, location: text(o.location, 200), occupation: text(o.occupation, 300), openToWork } };
+  return { ok: true, item: { name, profileUrl: o.profileUrl, location: text(o.location, 200), occupation: text(o.occupation, 300), openToWork: parseOpenToWork(o.openToWork) } };
 }
 
 export type ProfileReport = {
@@ -167,7 +179,10 @@ export type ProfileReport = {
   profileUrl: string | null;
   /** nazwy pól uzupełnionych / zmienionych w istniejącym kontakcie (location, occupation, openToWork) */
   filled: string[];
-  openToWork: boolean;
+  /** odczytany status (null = rozszerzenie go nie przysłało) */
+  openToWork: OtwReading;
+  /** zmiana „Open to work” u istniejącego kontaktu */
+  otwChanged: "on" | "off" | null;
   archived: boolean;
 };
 
@@ -179,10 +194,72 @@ export function profileReportText(r: ProfileReport): string {
   if (r.outcome === "skipped-url") lines.push(`Pominięto: brak poprawnego adresu profilu (${r.name})`);
   else if (r.outcome === "skipped-name") lines.push(`Pominięto: imię niezgodne z adresem profilu`, who);
   else if (r.outcome === "created") lines.push(`Nowy kontakt: ${who}`);
-  else if (r.outcome === "updated") lines.push(`Zaktualizowano: ${who}`, `Uzupełniono: ${r.filled.map((f) => FIELD_PL[f] ?? f).join(", ")}`);
+  else if (r.outcome === "updated") lines.push(`Zaktualizowano: ${who}`, `Zmieniono: ${r.filled.map((f) => FIELD_PL[f] ?? f).join(", ")}`);
   else lines.push(`Bez zmian: ${who}`);
-  if (r.openToWork) lines.push("🟢 Open to work");
+  if (r.otwChanged === "off") lines.push("Open to work: wyłączono (status zniknął z profilu)");
+  else if (r.openToWork) lines.push(r.otwChanged === "on" ? "🟢 Open to work: włączono" : "🟢 Open to work");
   if (r.archived) lines.push("Kontakt jest zarchiwizowany");
+  lines.push("", link("Kontakty", `${SITE}/contacts`));
+  return lines.join("\n").slice(0, 3900);
+}
+
+// ───────────── „People you may know” (content4.js, source "people_you_may_know") ─────────────
+
+export type PymkInput = { name: string; profileUrl: unknown; occupation: string | null; openToWork: OtwReading };
+
+export const MAX_PYMK = 300;
+
+/** Walidacja ładunku z n8n: `{ source: "people_you_may_know", results: [{ name, profileUrl, occupation, openToWork? }] }`. */
+export function parsePymkPayload(
+  body: unknown,
+): { ok: true; items: PymkInput[]; invalid: number } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "body" };
+  const b = body as Record<string, unknown>;
+  if (b.source !== "people_you_may_know") return { ok: false, error: "source" };
+  if (!Array.isArray(b.results)) return { ok: false, error: "results" };
+  if (b.results.length > MAX_PYMK) return { ok: false, error: "too-many" };
+  const items: PymkInput[] = [];
+  let invalid = 0;
+  for (const r of b.results) {
+    const o = r && typeof r === "object" ? (r as Record<string, unknown>) : null;
+    const name = text(o?.name, 200);
+    if (!o || !name) {
+      invalid++;
+      continue;
+    }
+    items.push({ name, profileUrl: o.profileUrl, occupation: text(o.occupation, 300), openToWork: parseOpenToWork(o.openToWork) });
+  }
+  return { ok: true, items, invalid };
+}
+
+export type PymkReport = {
+  received: number;
+  /** pozycje bez poprawnego imienia lub adresu profilu */
+  skipped: number;
+  created: { name: string; profileUrl: string; openToWork: boolean }[];
+  /** nowe kontakty z „Open to work” */
+  createdOpenToWork: number;
+  /** znane kontakty, którym uzupełniono puste „Zajęcie” */
+  occupationFilled: number;
+  /** znane kontakty, którym włączono „Open to work” */
+  openToWorkSet: number;
+  /** znane kontakty, którym wyłączono „Open to work” (status zniknął) */
+  openToWorkCleared: number;
+  /** osoby, które już były w bazie */
+  known: number;
+};
+
+export function pymkReportText(r: PymkReport): string {
+  const lines = ["🤝 <b>li-crm: People you may know</b>", `Sprawdzono: ${r.received - r.skipped} z ${r.received}`];
+  lines.push(`Nowe kontakty: ${r.created.length}${r.createdOpenToWork ? ` (w tym Open to work: ${r.createdOpenToWork})` : ""}`, `Już w bazie: ${r.known}`);
+  if (r.openToWorkSet) lines.push(`Włączono Open to work u znanych: ${r.openToWorkSet}`);
+  if (r.openToWorkCleared) lines.push(`Wyłączono Open to work u znanych: ${r.openToWorkCleared}`);
+  if (r.occupationFilled) lines.push(`Uzupełniono zajęcie: ${r.occupationFilled}`);
+  if (r.skipped) lines.push(`Pominięto (brak imienia lub adresu): ${r.skipped}`);
+  if (r.created.length) {
+    lines.push("", "<b>Nowe</b>", ...r.created.slice(0, 10).map((c) => `• ${link(c.name, c.profileUrl)}${c.openToWork ? " 🟢" : ""}`));
+    if (r.created.length > 10) lines.push(`… i ${r.created.length - 10} więcej`);
+  }
   lines.push("", link("Kontakty", `${SITE}/contacts`));
   return lines.join("\n").slice(0, 3900);
 }
