@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { RunningTimer } from "@/components/running-timer";
 import pkg from "../package.json";
+import { countPendingCandidates } from "@/lib/candidates";
 import { countDue } from "@/lib/reminders";
 import { getRunningEntry, listActivityTypes } from "@/lib/time";
 
-type Props = { current: "dashboard" | "contacts" | "today" | "time" | "stats" | "log" | "settings" | "security" };
+type Props = { current: "dashboard" | "contacts" | "inbox" | "today" | "time" | "stats" | "log" | "settings" | "security" };
 
 /** Wspólna nawigacja; gdy trwa sesja czasu pracy, pokazuje jej licznik na każdej stronie. */
 export function SiteNav({ current }: Props) {
@@ -21,6 +22,15 @@ export function SiteNav({ current }: Props) {
       <Button asChild size="sm" variant={current === "contacts" ? "secondary" : "ghost"}>
         <Link href="/contacts">Kontakty</Link>
       </Button>
+      <Suspense
+        fallback={
+          <Button asChild size="sm" variant={current === "inbox" ? "secondary" : "ghost"}>
+            <Link href="/inbox">Poczekalnia</Link>
+          </Button>
+        }
+      >
+        <InboxLink current={current} />
+      </Suspense>
       <Suspense
         fallback={
           <Button asChild size="sm" variant={current === "today" ? "secondary" : "ghost"}>
@@ -71,6 +81,18 @@ async function RunningBadge() {
       activityName={running.activityType?.name ?? null}
       activities={activities.map((a) => ({ id: a.id, name: a.name }))}
     />
+  );
+}
+
+async function InboxLink({ current }: Props) {
+  const pending = await countPendingCandidates();
+  return (
+    <Button asChild size="sm" variant={current === "inbox" ? "secondary" : "ghost"}>
+      <Link href="/inbox">
+        Poczekalnia
+        {pending > 0 && <span className="ml-1 rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground tabular-nums">{pending}</span>}
+      </Link>
+    </Button>
   );
 }
 

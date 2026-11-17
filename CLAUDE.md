@@ -79,7 +79,9 @@ Schemat bazy: `prisma/schema.prisma`.
 - Dane z rozszerzenia wchodzą przez `/api/ingest/*` (`lib/ingest-core.ts`, `lib/ingest.ts`): aplikacja normalizuje adres profilu, tworzy kontakty "Zebrany"
   i zdarzenia, składa raport dla Telegrama; n8n tylko przekazuje i wysyła. Wpisy dziennika ze źródłem `SYNC`, nie `UI` (nie liczą się jako praca w CRM).
   Profil ze strony `/in/` (`content6.js`, `source = profile_page`): `/api/ingest/profile`; uzupełnia tylko puste pola, "Open to work" ustawia wg odczytu w obie strony (`PRAWDA`/`false`; brak pola = bez zmiany; spec 13.2).
-  Popup "People you may know" (`content4.js`, `source = people_you_may_know`): `/api/ingest/people-you-may-know`, nowe kontakty `source = PYMK` (spec 13.3).
+  Popup "People you may know" (`content4.js`, `source = people_you_may_know`): `/api/ingest/people-you-may-know`; nowe osoby NIE są kontaktami, trafiają do
+  poczekalni (`Candidate`, `lib/candidates.ts`, strona `/inbox`), skąd użytkownik dodaje wybranych jako kontakty (`source = PYMK`) albo odrzuca (odrzuceni nie wracają).
+  Kontaktów nie usuwamy: błędny kontakt się archiwizuje. Kontakt założony inną drogą czyści swój wpis w poczekalni (`dropCandidates`). Spec 13.3 i 13.4.
 
 ## Środowiska
 

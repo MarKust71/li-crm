@@ -85,6 +85,30 @@ model Contact {
   @@index([direction, stage, archived])
 }
 
+// ───────────── Poczekalnia: osoby z masowych importów, jeszcze nie kontakty ─────────────
+// „People you may know” nie zakłada kontaktów od razu: nowa osoba trafia tu, a użytkownik wybiera, kogo dodać (→ Contact)
+// albo odrzucić (REJECTED: wiersz zostaje, żeby kolejne importy jej nie przywracały). Nie ma tu etapu ani zdarzeń.
+
+enum CandidateStatus {
+  PENDING  // czeka na decyzję
+  REJECTED // odrzucona: ukryta, nie wraca przy kolejnych importach (można przywrócić)
+}
+
+model Candidate {
+  id          String          @id @default(cuid())
+  profileUrl  String          @unique // znormalizowany, jak Contact.profileUrl
+  name        String
+  occupation  String?
+  openToWork  Boolean         @default(false)
+  source      Source          @default(PYMK)
+  status      CandidateStatus @default(PENDING)
+  seenCount   Int             @default(1) // ile razy zebrano ją w importach
+  firstSeenAt DateTime        @default(now())
+  lastSeenAt  DateTime        @default(now())
+
+  @@index([status, lastSeenAt])
+}
+
 // ─────────────── Lejek: zdarzenia zamiast ~40 kolumn ───────────────
 
 enum EventType {
