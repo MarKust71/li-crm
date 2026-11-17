@@ -34,3 +34,28 @@ export const isSuggestedStep = (t: string | undefined): t is SuggestedStep => t 
 export function suggestedMessage(step: SuggestedStep, salutation: string | null | undefined): string {
   return step === "INVITE_SENT" ? inviteMessage(salutation) : thanksMessage(salutation);
 }
+
+// ───────── Treści przypomnień po "Zapytano o otwartość na rozmowę" (tworzone automatycznie, patrz lib/reminders.ts) ─────────
+
+const greeting = (s: string) => `Dzień dobry${s ? `, ${s}` : ""}`;
+
+/** Po 7 dniach: delikatne przypomnienie. */
+export function followUpWeekMessage(salutation: string | null | undefined): string {
+  const s = salutation?.trim() ?? "";
+  const male = s ? isMale(s) : false;
+  return `${greeting(s)} 🙂 Przypominam się tylko delikatnie, bo wiem, że mógł${male ? "" : "a"} być ${male ? "Pan zajęty" : "Pani zajęta"} w ostatnich dniach. Gdyby znalazł${male ? "" : "a"} ${male ? "Pan" : "Pani"} chwilę na krótką wymianę zdań online, zapraszam serdecznie.`;
+}
+
+/** Po 4 tygodniach: wiadomość bez wołacza. */
+export function followUpMonthMessage(salutation: string | null | undefined): string {
+  const s = salutation?.trim() ?? "";
+  const nom = s && isMale(s) ? "Pan" : "Pani";
+  return `Widzę, że teraz prawdopodobnie ma ${nom} pełne ręce roboty, więc na pewno nie będę wracał do tematu przez najbliższe kilka miesięcy. Gdyby jednak w międzyczasie pojawiła się przestrzeń na 40 minut rozmowy, wie ${nom}, gdzie mnie znaleźć 🙂`;
+}
+
+/** Po 6 miesiącach: powrót do kontaktu. */
+export function followUpHalfYearMessage(salutation: string | null | undefined): string {
+  const s = salutation?.trim() ?? "";
+  const who = s && isMale(s) ? "Pana" : "Pani";
+  return `${s ? `Dzień dobry, ${s}!` : "Dzień dobry!"} Dawno nie rozmawialiśmy, co dobrego słychać u ${who} zawodowo? 🙂`;
+}

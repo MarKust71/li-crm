@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { contactName, logActivity } from "./activity-log";
 import { prisma } from "./prisma";
 import { addDays, parseDateInput, todayWarsaw, warsawDateOf } from "./dates";
+import { followUpHalfYearMessage, followUpMonthMessage, followUpWeekMessage } from "./invite-message";
 
 export const OVERDUE_PAGE_SIZE = 50;
 /** LinkedIn nie pozwala ponownie zaprosić osoby wcześniej niż 3 tygodnie po wycofaniu zaproszenia. */
@@ -144,6 +145,38 @@ export async function cancelReminder(id: string): Promise<ReminderResult> {
 
 type Tx = Prisma.TransactionClient;
 
+/** Dodaje miesiące do daty "YYYY-MM-DD" (31 stycznia + 1 miesiąc = ostatni dzień lutego). */
+function addMonths(dateInput: string, n: number): string {
+  const [y, m, d] = dateInput.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m - 1 + n, Math.min(d, last))).toISOString().slice(0, 10);
+}
+
+/** Automatyczne przypomnienia po pytaniu o rozmowę: AUTO + REMINDER (RECONNECT jest osobnym rodzajem). */
+const FOLLOW_UP_WHERE = (contactId: string) => ({ contactId, kind: "REMINDER", source: "AUTO", status: "OPEN" }) as const;
+
+async function createFollowUps(tx: Tx, contactId: string, occurredAt: Date) {
+  if ((await tx.reminder.count({ where: FOLLOW_UP_WHERE(contactId) })) > 0) return; // pytanie powtórzone: nie dublujemy
+  const contact = await tx.contact.findUnique({ where: { id: contactId }, select: { salutation: true } });
+  const base = warsawDateOf(occurredAt);
+  const plan = [
+    { date: addDays(base, 7), note: followUpWeekMessage(contact?.salutation) },
+    { date: addDays(base, 28), note: followUpMonthMessage(contact?.salutation) },
+    { date: addMonths(base, 6), note: followUpHalfYearMessage(contact?.salutation) },
+  ];
+  for (const p of plan) {
+    const dueAt = parseDateInput(p.date);
+    if (dueAt) await tx.reminder.create({ data: { contactId, kind: "REMINDER", dueAt, allDay: true, note: p.note, source: "AUTO", syncState: "PENDING", syncAttempts: 0, syncError: null } });
+  }
+  await logActivity({ source: "SYSTEM", action: "reminder.auto_created", contactId, summary: `Automatyczne przypomnienia po pytaniu o rozmowę (${plan.map((p) => p.date).join(", ")}): ${await contactName(contactId, tx)}` }, tx);
+}
+
+/** Anuluje otwarte automatyczne przypomnienia (wiersze zostają jako CANCELED, żeby n8n skasował wydarzenia). */
+export async function cancelFollowUps(tx: Tx, contactId: string) {
+  const r = await tx.reminder.updateMany({ where: FOLLOW_UP_WHERE(contactId), data: { status: "CANCELED", syncState: "PENDING", syncAttempts: 0, syncError: null } });
+  if (r.count > 0) await logActivity({ source: "SYSTEM", action: "reminder.auto_canceled", contactId, summary: `Anulowano ${r.count} automatycznych przypomnień: ${await contactName(contactId, tx)}` }, tx);
+}
+
 /**
  * Wywoływane z addContactEvent (w tej samej transakcji):
  *  - wycofanie zaproszenia → przypomnienie RECONNECT za 3 tygodnie (o ile kontakt nie ma już otwartego),
@@ -159,6 +192,11 @@ export async function applyEventAutomations(tx: Tx, contactId: string, type: str
         await logActivity({ source: "SYSTEM", action: "reminder.auto_created", contactId, summary: `Automatyczne przypomnienie o ponownym zaproszeniu (${warsawDateOf(dueAt)}): ${await contactName(contactId, tx)}` }, tx);
       }
     }
+  } else if (type === "ASKED_OPEN") {
+    await createFollowUps(tx, contactId, occurredAt);
+  } else if (type === "ASKED_OPEN_RESPONSE" || type === "OPEN_TO_TALK" || type === "NOT_INTERESTED") {
+    // osoba odpowiedziała, więc "przypominajki" nie mają sensu
+    await cancelFollowUps(tx, contactId);
   } else if (type === "INVITE_SENT") {
     await tx.reminder.updateMany({
       where: { contactId, kind: "RECONNECT", status: "OPEN" },
