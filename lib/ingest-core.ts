@@ -236,30 +236,38 @@ export type PymkReport = {
   received: number;
   /** pozycje bez poprawnego imienia lub adresu profilu */
   skipped: number;
-  created: { name: string; profileUrl: string; openToWork: boolean }[];
-  /** nowe kontakty z „Open to work” */
-  createdOpenToWork: number;
+  /** nowe osoby, które trafiły do poczekalni */
+  queued: { name: string; profileUrl: string; openToWork: boolean }[];
+  /** z nich z „Open to work” */
+  queuedOpenToWork: number;
+  /** osoby, które już czekały w poczekalni */
+  alreadyQueued: number;
+  /** osoby odrzucone wcześniej w poczekalni (pominięte) */
+  rejected: number;
+  /** znane kontakty (są już w bazie) */
+  known: number;
   /** znane kontakty, którym uzupełniono puste „Zajęcie” */
   occupationFilled: number;
   /** znane kontakty, którym włączono „Open to work” */
   openToWorkSet: number;
   /** znane kontakty, którym wyłączono „Open to work” (status zniknął) */
   openToWorkCleared: number;
-  /** osoby, które już były w bazie */
-  known: number;
 };
 
 export function pymkReportText(r: PymkReport): string {
   const lines = ["🤝 <b>li-crm: People you may know</b>", `Sprawdzono: ${r.received - r.skipped} z ${r.received}`];
-  lines.push(`Nowe kontakty: ${r.created.length}${r.createdOpenToWork ? ` (w tym Open to work: ${r.createdOpenToWork})` : ""}`, `Już w bazie: ${r.known}`);
-  if (r.openToWorkSet) lines.push(`Włączono Open to work u znanych: ${r.openToWorkSet}`);
-  if (r.openToWorkCleared) lines.push(`Wyłączono Open to work u znanych: ${r.openToWorkCleared}`);
-  if (r.occupationFilled) lines.push(`Uzupełniono zajęcie: ${r.occupationFilled}`);
+  lines.push(`Do poczekalni: ${r.queued.length}${r.queuedOpenToWork ? ` (w tym Open to work: ${r.queuedOpenToWork})` : ""}`);
+  if (r.alreadyQueued) lines.push(`Już w poczekalni: ${r.alreadyQueued}`);
+  if (r.rejected) lines.push(`Odrzucone wcześniej (pominięte): ${r.rejected}`);
+  lines.push(`Już w bazie (kontakty): ${r.known}`);
+  if (r.openToWorkSet) lines.push(`Włączono Open to work u kontaktów: ${r.openToWorkSet}`);
+  if (r.openToWorkCleared) lines.push(`Wyłączono Open to work u kontaktów: ${r.openToWorkCleared}`);
+  if (r.occupationFilled) lines.push(`Uzupełniono zajęcie u kontaktów: ${r.occupationFilled}`);
   if (r.skipped) lines.push(`Pominięto (brak imienia lub adresu): ${r.skipped}`);
-  if (r.created.length) {
-    lines.push("", "<b>Nowe</b>", ...r.created.slice(0, 10).map((c) => `• ${link(c.name, c.profileUrl)}${c.openToWork ? " 🟢" : ""}`));
-    if (r.created.length > 10) lines.push(`… i ${r.created.length - 10} więcej`);
+  if (r.queued.length) {
+    lines.push("", "<b>Nowe w poczekalni</b>", ...r.queued.slice(0, 10).map((c) => `• ${link(c.name, c.profileUrl)}${c.openToWork ? " 🟢" : ""}`));
+    if (r.queued.length > 10) lines.push(`… i ${r.queued.length - 10} więcej`);
   }
-  lines.push("", link("Kontakty", `${SITE}/contacts`));
+  lines.push("", link("Poczekalnia", `${SITE}/inbox`));
   return lines.join("\n").slice(0, 3900);
 }

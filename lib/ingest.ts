@@ -1,4 +1,5 @@
 import { logActivity } from "./activity-log";
+import { dropCandidates, upsertCandidates } from "./candidates";
 import { cleanOccupation } from "./contacts";
 import { nameMatchesProfile, parseViewedAgo, profileReportText, pymkReportText, resolveScrapedAt, reportText, type IngestReport, type ProfileInput, type ProfileReport, type OtwReading, type PymkInput, type PymkReport, type ViewerInput } from "./ingest-core";
 import { normalizeProfileUrl } from "./profile-url";
@@ -49,6 +50,7 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
         known.set(c.profileUrl, c);
         report.created.push({ name: c.name, profileUrl: c.profileUrl });
       }
+      await dropCandidates(created.map((c) => c.profileUrl));
       if (created.length) {
         await prisma.activityLog.createMany({
           data: created.map((c) => ({ source: "SYNC" as const, action: "contact.created", contactId: c.id, summary: `Nowy kontakt z listy oglądających: ${c.name}` })),
@@ -139,6 +141,7 @@ export async function ingestProfile(item: ProfileInput): Promise<{ report: Profi
           select: { id: true, name: true },
         });
         report = { ...base, outcome: created.length ? "created" : "unchanged" };
+        await dropCandidates([profileUrl]);
         if (created.length) await logActivity({ source: "SYNC", action: "contact.created", contactId: created[0].id, summary: `Nowy kontakt ze strony profilu: ${created[0].name}` });
       }
     } catch (e) {
@@ -157,14 +160,25 @@ export async function ingestProfile(item: ProfileInput): Promise<{ report: Profi
 }
 
 /**
- * Przyjęcie osób z popupu „People you may know” (content4.js, przez n8n): nowa osoba → kontakt „Zebrany”, `source = PYMK`
- * (imię pochodzi z przycisku „Invite … to connect” tej samej karty, więc nie stosujemy straży imienia jak przy liście oglądających).
+ * Przyjęcie osób z popupu „People you may know” (content4.js, przez n8n). Nowe osoby NIE zakładają kontaktów: trafiają do poczekalni
+ * (lib/candidates.ts, strona /inbox), gdzie użytkownik wybiera, kogo dodać, a kogo odrzucić; odrzuceni nie wracają przy kolejnych importach.
  * Znany kontakt: puste „Zajęcie” uzupełniane (niepustego nie nadpisujemy), „Open to work” ustawiane wg odczytu (true/false; brak pola = bez zmiany);
- * zarchiwizowany zostaje zarchiwizowany.
- * Bez zdarzeń (etap się nie zmienia). Zapisy zbiorcze, ponowienie tego samego żądania jest bezpieczne (unikalny adres, wypełniamy tylko braki).
+ * zarchiwizowany zostaje zarchiwizowany. Imię pochodzi z przycisku „Invite … to connect” tej samej karty, więc bez straży imienia jak przy liście oglądających.
+ * Bez zdarzeń (etap się nie zmienia). Zapisy zbiorcze; ponowienie tego samego żądania jest bezpieczne.
  */
 export async function ingestPymk(items: PymkInput[], invalidCount: number): Promise<{ report: PymkReport; message: string }> {
-  const report: PymkReport = { received: items.length + invalidCount, skipped: invalidCount, created: [], createdOpenToWork: 0, occupationFilled: 0, openToWorkSet: 0, openToWorkCleared: 0, known: 0 };
+  const report: PymkReport = {
+    received: items.length + invalidCount,
+    skipped: invalidCount,
+    queued: [],
+    queuedOpenToWork: 0,
+    alreadyQueued: 0,
+    rejected: 0,
+    known: 0,
+    occupationFilled: 0,
+    openToWorkSet: 0,
+    openToWorkCleared: 0,
+  };
 
   const seen = new Set<string>();
   const people: { profileUrl: string; name: string; occupation: string | null; openToWork: OtwReading }[] = [];
@@ -182,31 +196,16 @@ export async function ingestPymk(items: PymkInput[], invalidCount: number): Prom
   try {
     const select = { id: true, profileUrl: true, name: true, occupation: true, openToWork: true } as const;
     const known = new Map((await prisma.contact.findMany({ where: { profileUrl: { in: people.map((p) => p.profileUrl) } }, select })).map((c) => [c.profileUrl, c]));
-    const existingUrls = new Set(known.keys());
-    report.known = existingUrls.size;
+    report.known = known.size;
 
-    const fresh = people.filter((p) => !known.has(p.profileUrl));
-    if (fresh.length) {
-      const created = await prisma.contact.createManyAndReturn({
-        data: fresh.map((p) => ({ profileUrl: p.profileUrl, name: p.name, occupation: p.occupation, openToWork: p.openToWork === true, source: "PYMK" as const })),
-        skipDuplicates: true,
-        select,
-      });
-      const otwByUrl = new Map(fresh.map((p) => [p.profileUrl, p.openToWork === true]));
-      for (const c of created) {
-        report.created.push({ name: c.name, profileUrl: c.profileUrl, openToWork: otwByUrl.get(c.profileUrl) ?? false });
-      }
-      report.createdOpenToWork = report.created.filter((c) => c.openToWork).length;
-      if (created.length) {
-        await prisma.activityLog.createMany({
-          data: created.map((c) => ({ source: "SYNC" as const, action: "contact.created", contactId: c.id, summary: `Nowy kontakt z „People you may know”: ${c.name}` })),
-        });
-      }
-      // kontakt mógł powstać równolegle (ponowione żądanie): policz go jako znany
-      report.known += fresh.length - created.length;
-    }
+    // nie-kontakty → poczekalnia
+    const queue = await upsertCandidates(people.filter((p) => !known.has(p.profileUrl)));
+    report.queued = queue.created;
+    report.queuedOpenToWork = queue.created.filter((c) => c.openToWork).length;
+    report.alreadyQueued = queue.pending;
+    report.rejected = queue.rejected;
 
-    // znane kontakty: uzupełnienie pustego „Zajęcia” i włączenie „Open to work”
+    // znane kontakty: uzupełnienie pustego „Zajęcia” i „Open to work” wg odczytu
     const fills = people.filter((p) => {
       const c = known.get(p.profileUrl);
       return c && p.occupation && !cleanOccupation(c.occupation);
@@ -231,6 +230,8 @@ export async function ingestPymk(items: PymkInput[], invalidCount: number): Prom
         data: changes.map((c) => ({ source: "SYNC" as const, action: "contact.open_to_work", contactId: c.id, summary: `Open to work ${c.on ? "włączono" : "wyłączono"} (odczyt z „People you may know”): ${c.name}` })),
       });
     }
+    // osoba, która stała się kontaktem inną drogą, nie powinna wisieć w poczekalni
+    await dropCandidates([...known.keys()]);
   } catch (e) {
     await logActivity({ source: "SYNC", action: "ingest.pymk", level: "ERROR", summary: `People you may know: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
     throw e;
@@ -239,8 +240,19 @@ export async function ingestPymk(items: PymkInput[], invalidCount: number): Prom
   await logActivity({
     source: "SYNC",
     action: "ingest.pymk",
-    summary: `People you may know: sprawdzono ${report.received - report.skipped}, nowych kontaktów ${report.created.length}, znanych ${report.known}, Open to work: nowe ${report.createdOpenToWork}, włączono ${report.openToWorkSet}, wyłączono ${report.openToWorkCleared}`,
-    details: { received: report.received, skipped: report.skipped, created: report.created.length, known: report.known, createdOpenToWork: report.createdOpenToWork, openToWorkSet: report.openToWorkSet, openToWorkCleared: report.openToWorkCleared, occupationFilled: report.occupationFilled },
+    summary: `People you may know: sprawdzono ${report.received - report.skipped}, do poczekalni ${report.queued.length}, już czekało ${report.alreadyQueued}, odrzuconych ${report.rejected}, kontaktów ${report.known}`,
+    details: {
+      received: report.received,
+      skipped: report.skipped,
+      queued: report.queued.length,
+      queuedOpenToWork: report.queuedOpenToWork,
+      alreadyQueued: report.alreadyQueued,
+      rejected: report.rejected,
+      known: report.known,
+      occupationFilled: report.occupationFilled,
+      openToWorkSet: report.openToWorkSet,
+      openToWorkCleared: report.openToWorkCleared,
+    },
   });
   return { report, message: pymkReportText(report) };
 }
