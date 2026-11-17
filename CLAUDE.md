@@ -78,7 +78,8 @@ Schemat bazy: `prisma/schema.prisma`.
 
 - Dane z rozszerzenia wchodzą przez `/api/ingest/*` (`lib/ingest-core.ts`, `lib/ingest.ts`): aplikacja normalizuje adres profilu, tworzy kontakty "Zebrany"
   i zdarzenia, składa raport dla Telegrama; n8n tylko przekazuje i wysyła. Wpisy dziennika ze źródłem `SYNC`, nie `UI` (nie liczą się jako praca w CRM).
-  Profil ze strony `/in/` (`content6.js`, `source = profile_page`): `/api/ingest/profile`; uzupełnia tylko puste pola, "Open to work" tylko włącza (spec 13.2).
+  Profil ze strony `/in/` (`content6.js`, `source = profile_page`): `/api/ingest/profile`; uzupełnia tylko puste pola, "Open to work" ustawia wg odczytu w obie strony (`PRAWDA`/`false`; brak pola = bez zmiany; spec 13.2).
+  Popup "People you may know" (`content4.js`, `source = people_you_may_know`): `/api/ingest/people-you-may-know`, nowe kontakty `source = PYMK` (spec 13.3).
 
 ## Środowiska
 

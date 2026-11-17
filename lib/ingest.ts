@@ -1,6 +1,6 @@
 import { logActivity } from "./activity-log";
 import { cleanOccupation } from "./contacts";
-import { nameMatchesProfile, parseViewedAgo, profileReportText, resolveScrapedAt, reportText, type IngestReport, type ProfileInput, type ProfileReport, type ViewerInput } from "./ingest-core";
+import { nameMatchesProfile, parseViewedAgo, profileReportText, pymkReportText, resolveScrapedAt, reportText, type IngestReport, type ProfileInput, type ProfileReport, type OtwReading, type PymkInput, type PymkReport, type ViewerInput } from "./ingest-core";
 import { normalizeProfileUrl } from "./profile-url";
 import { prisma } from "./prisma";
 
@@ -106,13 +106,13 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
 
 /**
  * Przyjęcie danych ze strony profilu (content6.js, przez n8n). Nowa osoba (z pewnym imieniem) → kontakt „Zebrany”, `source = PROFILE`.
- * Znany kontakt: uzupełniamy puste „Lokalizację” i „Zajęcie” (niepustych nie nadpisujemy), „Open to work” tylko włączamy
- * (rozszerzenie wysyła to pole wyłącznie przy wykryciu, więc jego brak niczego nie wyłącza). Zarchiwizowany zostaje zarchiwizowany.
+ * Znany kontakt: uzupełniamy puste „Lokalizację” i „Zajęcie” (niepustych nie nadpisujemy), a „Open to work” ustawiamy wg odczytu
+ * (true/false z rozszerzenia; brak pola = nie odczytywano, bez zmiany). Zarchiwizowany zostaje zarchiwizowany.
  * Bez zdarzeń, więc etap się nie zmienia. Ponowienie tego samego żądania jest bezpieczne (unikalny adres, wypełniamy tylko braki).
  */
 export async function ingestProfile(item: ProfileInput): Promise<{ report: ProfileReport; message: string }> {
   const profileUrl = normalizeProfileUrl(item.profileUrl);
-  const base = { name: item.name, profileUrl, filled: [] as string[], openToWork: item.openToWork, archived: false };
+  const base = { name: item.name, profileUrl, filled: [] as string[], openToWork: item.openToWork, otwChanged: null as "on" | "off" | null, archived: false };
   let report: ProfileReport;
   if (!profileUrl) {
     report = { ...base, outcome: "skipped-url" };
@@ -124,16 +124,17 @@ export async function ingestProfile(item: ProfileInput): Promise<{ report: Profi
         const data: { location?: string; occupation?: string; openToWork?: boolean } = {};
         if (item.location && !existing.location?.trim()) data.location = item.location;
         if (occupation && !cleanOccupation(existing.occupation)) data.occupation = occupation;
-        if (item.openToWork && !existing.openToWork) data.openToWork = true;
+        if (item.openToWork !== null && item.openToWork !== existing.openToWork) data.openToWork = item.openToWork;
         const filled = Object.keys(data);
         if (filled.length) await prisma.contact.update({ where: { id: existing.id }, data });
-        report = { ...base, name: existing.name, filled, archived: existing.archived, outcome: filled.length ? "updated" : "unchanged" };
+        const otwChanged = data.openToWork === undefined ? null : data.openToWork ? ("on" as const) : ("off" as const);
+        report = { ...base, name: existing.name, filled, otwChanged, archived: existing.archived, outcome: filled.length ? "updated" : "unchanged" };
         if (filled.length) await logActivity({ source: "SYNC", action: "contact.profile_updated", contactId: existing.id, summary: `Dane profilu: ${existing.name} (uzupełniono: ${filled.join(", ")})` });
       } else if (!nameMatchesProfile(item.name, profileUrl)) {
         report = { ...base, outcome: "skipped-name" };
       } else {
         const created = await prisma.contact.createManyAndReturn({
-          data: [{ profileUrl, name: item.name, location: item.location, occupation, openToWork: item.openToWork, source: "PROFILE" as const }],
+          data: [{ profileUrl, name: item.name, location: item.location, occupation, openToWork: item.openToWork === true, source: "PROFILE" as const }],
           skipDuplicates: true,
           select: { id: true, name: true },
         });
@@ -150,7 +151,96 @@ export async function ingestProfile(item: ProfileInput): Promise<{ report: Profi
     action: "ingest.profile",
     level: report.outcome.startsWith("skipped") ? "WARN" : "INFO",
     summary: `Dane profilu: ${report.outcome}${report.filled.length ? ` (${report.filled.join(", ")})` : ""}`,
-    details: { outcome: report.outcome, filled: report.filled, openToWork: report.openToWork, archived: report.archived },
+    details: { outcome: report.outcome, filled: report.filled, openToWork: report.openToWork, otwChanged: report.otwChanged, archived: report.archived },
   });
   return { report, message: profileReportText(report) };
+}
+
+/**
+ * Przyjęcie osób z popupu „People you may know” (content4.js, przez n8n): nowa osoba → kontakt „Zebrany”, `source = PYMK`
+ * (imię pochodzi z przycisku „Invite … to connect” tej samej karty, więc nie stosujemy straży imienia jak przy liście oglądających).
+ * Znany kontakt: puste „Zajęcie” uzupełniane (niepustego nie nadpisujemy), „Open to work” ustawiane wg odczytu (true/false; brak pola = bez zmiany);
+ * zarchiwizowany zostaje zarchiwizowany.
+ * Bez zdarzeń (etap się nie zmienia). Zapisy zbiorcze, ponowienie tego samego żądania jest bezpieczne (unikalny adres, wypełniamy tylko braki).
+ */
+export async function ingestPymk(items: PymkInput[], invalidCount: number): Promise<{ report: PymkReport; message: string }> {
+  const report: PymkReport = { received: items.length + invalidCount, skipped: invalidCount, created: [], createdOpenToWork: 0, occupationFilled: 0, openToWorkSet: 0, openToWorkCleared: 0, known: 0 };
+
+  const seen = new Set<string>();
+  const people: { profileUrl: string; name: string; occupation: string | null; openToWork: OtwReading }[] = [];
+  for (const item of items) {
+    const profileUrl = normalizeProfileUrl(item.profileUrl);
+    if (!profileUrl) {
+      report.skipped++;
+      continue;
+    }
+    if (seen.has(profileUrl)) continue;
+    seen.add(profileUrl);
+    people.push({ profileUrl, name: item.name, occupation: cleanOccupation(item.occupation), openToWork: item.openToWork });
+  }
+
+  try {
+    const select = { id: true, profileUrl: true, name: true, occupation: true, openToWork: true } as const;
+    const known = new Map((await prisma.contact.findMany({ where: { profileUrl: { in: people.map((p) => p.profileUrl) } }, select })).map((c) => [c.profileUrl, c]));
+    const existingUrls = new Set(known.keys());
+    report.known = existingUrls.size;
+
+    const fresh = people.filter((p) => !known.has(p.profileUrl));
+    if (fresh.length) {
+      const created = await prisma.contact.createManyAndReturn({
+        data: fresh.map((p) => ({ profileUrl: p.profileUrl, name: p.name, occupation: p.occupation, openToWork: p.openToWork === true, source: "PYMK" as const })),
+        skipDuplicates: true,
+        select,
+      });
+      const otwByUrl = new Map(fresh.map((p) => [p.profileUrl, p.openToWork === true]));
+      for (const c of created) {
+        report.created.push({ name: c.name, profileUrl: c.profileUrl, openToWork: otwByUrl.get(c.profileUrl) ?? false });
+      }
+      report.createdOpenToWork = report.created.filter((c) => c.openToWork).length;
+      if (created.length) {
+        await prisma.activityLog.createMany({
+          data: created.map((c) => ({ source: "SYNC" as const, action: "contact.created", contactId: c.id, summary: `Nowy kontakt z „People you may know”: ${c.name}` })),
+        });
+      }
+      // kontakt mógł powstać równolegle (ponowione żądanie): policz go jako znany
+      report.known += fresh.length - created.length;
+    }
+
+    // znane kontakty: uzupełnienie pustego „Zajęcia” i włączenie „Open to work”
+    const fills = people.filter((p) => {
+      const c = known.get(p.profileUrl);
+      return c && p.occupation && !cleanOccupation(c.occupation);
+    });
+    if (fills.length) {
+      await prisma.$transaction(fills.map((p) => prisma.contact.update({ where: { id: known.get(p.profileUrl)!.id }, data: { occupation: p.occupation } })));
+      report.occupationFilled = fills.length;
+    }
+    const changes = people.flatMap((p) => {
+      const c = known.get(p.profileUrl);
+      return c && p.openToWork !== null && p.openToWork !== c.openToWork ? [{ id: c.id, name: c.name, on: p.openToWork }] : [];
+    });
+    for (const on of [true, false]) {
+      const ids = changes.filter((c) => c.on === on).map((c) => c.id);
+      if (!ids.length) continue;
+      const res = await prisma.contact.updateMany({ where: { id: { in: ids }, openToWork: !on }, data: { openToWork: on } });
+      if (on) report.openToWorkSet = res.count;
+      else report.openToWorkCleared = res.count;
+    }
+    if (changes.length) {
+      await prisma.activityLog.createMany({
+        data: changes.map((c) => ({ source: "SYNC" as const, action: "contact.open_to_work", contactId: c.id, summary: `Open to work ${c.on ? "włączono" : "wyłączono"} (odczyt z „People you may know”): ${c.name}` })),
+      });
+    }
+  } catch (e) {
+    await logActivity({ source: "SYNC", action: "ingest.pymk", level: "ERROR", summary: `People you may know: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
+    throw e;
+  }
+
+  await logActivity({
+    source: "SYNC",
+    action: "ingest.pymk",
+    summary: `People you may know: sprawdzono ${report.received - report.skipped}, nowych kontaktów ${report.created.length}, znanych ${report.known}, Open to work: nowe ${report.createdOpenToWork}, włączono ${report.openToWorkSet}, wyłączono ${report.openToWorkCleared}`,
+    details: { received: report.received, skipped: report.skipped, created: report.created.length, known: report.known, createdOpenToWork: report.createdOpenToWork, openToWorkSet: report.openToWorkSet, openToWorkCleared: report.openToWorkCleared, occupationFilled: report.occupationFilled },
+  });
+  return { report, message: pymkReportText(report) };
 }
