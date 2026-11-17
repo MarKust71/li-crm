@@ -2,7 +2,7 @@ import type { ArchiveReason, EventType, Prisma } from "@prisma/client";
 import { contactName, logActivity } from "./activity-log";
 import { EVENT_LABEL } from "./labels";
 import { prisma } from "./prisma";
-import { applyEventAutomations } from "./reminders";
+import { applyEventAutomations, cancelFollowUps } from "./reminders";
 import { MEETING_TYPES, OUTCOME_TYPES } from "./meeting-sync-core";
 import { computeStage } from "./stage";
 
@@ -107,6 +107,8 @@ export async function deleteContactEvent(eventId: string): Promise<DeleteResult>
       });
     }
     await recomputeStage(tx, event.contactId);
+    // usunięto jedyne pytanie o rozmowę → jego automatyczne przypomnienia tracą sens
+    if (event.type === "ASKED_OPEN" && (await tx.contactEvent.count({ where: { contactId: event.contactId, type: "ASKED_OPEN" } })) === 0) await cancelFollowUps(tx, event.contactId);
     await logActivity(
       { source: "UI", action: "event.deleted", contactId: event.contactId, summary: `Usunięto zdarzenie „${EVENT_LABEL[event.type]}": ${await contactName(event.contactId, tx)}`, details: { type: event.type, occurredAt: event.occurredAt.toISOString() } },
       tx,
