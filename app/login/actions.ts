@@ -18,7 +18,7 @@ async function clientIp(): Promise<string> {
 }
 
 function back(error: string, next: string): never {
-  redirect(`/login?error=${error}${next !== "/contacts" ? `&next=${encodeURIComponent(next)}` : ""}`);
+  redirect(`/login?error=${error}${next !== "/dashboard" ? `&next=${encodeURIComponent(next)}` : ""}`);
 }
 
 export async function loginAction(formData: FormData) {

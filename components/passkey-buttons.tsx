@@ -45,7 +45,7 @@ export function PasskeyLoginButton({ next }: { next: string }) {
       const response = await startAuthentication({ optionsJSON: await optRes.json() });
       const res = await postJson("/api/auth/passkey/login/verify", { response, next });
       if (!res.ok) throw new Error("verify");
-      window.location.assign((await res.json()).next ?? "/contacts"); // pełne przeładowanie: dostajemy ciasteczko sesji
+      window.location.assign((await res.json()).next ?? "/dashboard"); // pełne przeładowanie: dostajemy ciasteczko sesji
     } catch (e) {
       setError(describeError(e));
       setBusy(false);

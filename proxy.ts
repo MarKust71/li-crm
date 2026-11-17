@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname === "/login") {
     // zalogowany użytkownik nie potrzebuje formularza
-    if (authed && request.method === "GET") return NextResponse.redirect(new URL("/contacts", request.url));
+    if (authed && request.method === "GET") return NextResponse.redirect(new URL("/dashboard", request.url));
     return NextResponse.next();
   }
 
