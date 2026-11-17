@@ -40,6 +40,14 @@ Schemat bazy: `prisma/schema.prisma`.
 - Statystyki (`/stats`, zastępują arkusz "Summary") są liczone w zapytaniach (`lib/stats.ts`, czyste definicje w `lib/stats-core.ts`),
   nie przechowywane. Liczą osoby, nie zdarzenia; zdarzenia z `dateUnknown` pomijamy wszędzie, gdzie liczy się czas. Konwersje liczone
   na kohorcie (osoby z pierwszym zaproszeniem w okresie); granice okresu to północ czasu warszawskiego.
+- Dashboard (`/dashboard`, strona startowa: `/` i logowanie przekierowują tu; `getDashboard` w `lib/stats.ts`, okresy w `dashboardPeriods`
+  w `lib/stats-core.ts`) liczy tylko wysłane zaproszenia (kontakty `OUTBOUND`, `INVITE_SENT`), bez tagów i kierunku, osoby, nie zdarzenia.
+  Trzy wielkości (zaproszenia, przyjęte i % zaproszeń, zapytania o rozmowę i % przyjętych) w wierszach-okresach, kroki flow w poziomie.
+  Dwa przełączniki w URL: `okres` (`rolling` = wstecz od dziś: 7/30/365 dni; `calendar` = od poniedziałku / 1. dnia miesiąca / 1 stycznia)
+  i `kohorta` (domyślnie wyłączona = każdy krok osobno w okresie, procenty mogą przekraczać 100%; `kohorta=1` = ścisła: przyjęcie wymaga
+  zaproszenia w tym samym okresie, zapytanie o rozmowę przyjęcia i zaproszenia). Do tego zawsze "Od początku roku biznesowego" / "Ten rok
+  biznesowy" (start 1 września: `FISCAL_START_MONTH`) i "Cały okres" (od początku danych). To inna definicja kohorty niż w `/stats`
+  (tam: pierwsze zaproszenie w okresie, przyjęcie kiedykolwiek), więc liczby obu stron mogą się różnić.
 - Powiadomienia Telegram: aplikacja układa treść i decyduje, co wysłać (`lib/notify-core.ts`, `lib/notify.ts`, endpointy
   `/api/notify/pending` i `/result`, ten sam `SYNC_API_KEY`); n8n (workflow "li-crm: powiadomienia Telegram", co minutę) tylko wysyła
   i potwierdza. Wiadomość liczy się jako wysłana dopiero po potwierdzeniu (`SentNotification`). Ustawienia w "Ustawienia".
@@ -53,6 +61,14 @@ Schemat bazy: `prisma/schema.prisma`.
 
 - Podpowiedzi czasu pracy (pasek `TimeBar` w `app/layout.tsx`) opierają się na dzienniku aktywności: nowe akcje użytkownika logujesz
   `logActivity` ze źródłem `UI`, a akcje niebędące pracą w CRM dostają prefiks `time.`, `settings.` lub `log.`. Pasek niczego nie zatrzymuje sam.
+
+- Pauza w czasie pracy (`TimeEntry.pausedAt`, `pausedSeconds`, `lib/time.ts`): sesja w toku może być wstrzymana (nadal `endedAt = null`, więc
+  nadal najwyżej jedna). Czas netto = koniec − początek − `pausedSeconds` i tak liczą wszystkie sumy w zapytaniach (`SECS` w `lib/time.ts`,
+  z `GREATEST(0, …)`); nowe zapytania o czas pracy też muszą odejmować przerwy. Zatrzymanie w pauzie kończy wpis w chwili jej rozpoczęcia.
+  `pauseSession`/`resumeSession` są odporne na podwójne kliknięcie (warunek w `updateMany`). Pasek `TimeBar` (`lib/time-assist-core.ts`):
+  po `pauseMinutes` bezczynności (domyślnie 15, 0 = wyłączone) proponuje wstrzymanie; dłuższa bezczynność (`idleMinutes`) ma pierwszeństwo i
+  proponuje zakończenie; w pauzie, gdy w aplikacji coś się dzieje, proponuje wznowienie. Wznowienie liczy się jak aktywność (`time.resumed`
+  w dzienniku), żeby pasek nie proponował pauzy zaraz po nim.
 
 - Dane z rozszerzenia wchodzą przez `/api/ingest/*` (`lib/ingest-core.ts`, `lib/ingest.ts`): aplikacja normalizuje adres profilu, tworzy kontakty "Zebrany"
   i zdarzenia, składa raport dla Telegrama; n8n tylko przekazuje i wysyła. Wpisy dziennika ze źródłem `SYNC`, nie `UI` (nie liczą się jako praca w CRM).
