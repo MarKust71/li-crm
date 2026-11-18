@@ -230,10 +230,11 @@ export const MAX_PYMK = 300;
 /** Walidacja ładunku z n8n: `{ source: "people_you_may_know", results: [{ name, profileUrl, occupation, openToWork? }] }`. */
 export function parsePymkPayload(
   body: unknown,
+  expectedSource: string = "people_you_may_know",
 ): { ok: true; items: PymkInput[]; invalid: number } | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "body" };
   const b = body as Record<string, unknown>;
-  if (b.source !== "people_you_may_know") return { ok: false, error: "source" };
+  if (b.source !== expectedSource) return { ok: false, error: "source" };
   if (!Array.isArray(b.results)) return { ok: false, error: "results" };
   if (b.results.length > MAX_PYMK) return { ok: false, error: "too-many" };
   const items: PymkInput[] = [];
@@ -272,8 +273,8 @@ export type PymkReport = {
   openToWorkCleared: number;
 };
 
-export function pymkReportText(r: PymkReport): string {
-  const lines = ["🤝 <b>li-crm: People you may know</b>", `Sprawdzono: ${r.received - r.skipped} z ${r.received}`];
+export function pymkReportText(r: PymkReport, title = "People you may know"): string {
+  const lines = [`🤝 <b>li-crm: ${title}</b>`, `Sprawdzono: ${r.received - r.skipped} z ${r.received}`];
   lines.push(`Do poczekalni: ${r.queued.length}${r.queuedOpenToWork ? ` (w tym Open to work: ${r.queuedOpenToWork})` : ""}`);
   if (r.alreadyQueued) lines.push(`Już w poczekalni: ${r.alreadyQueued}`);
   if (r.rejected) lines.push(`Odrzucone wcześniej (pominięte): ${r.rejected}`);

@@ -8,7 +8,7 @@ import { prisma } from "./prisma";
 
 export const CANDIDATE_PAGE_SIZE = 100;
 
-export const CANDIDATE_SOURCES: Source[] = ["PYMK", "VIEWERS"];
+export const CANDIDATE_SOURCES: Source[] = ["PYMK", "MORE_PROFILES", "VIEWERS"];
 
 export type CandidateFilters = { status: CandidateStatus; q: string; otw: boolean; source: Source | ""; page: number };
 
