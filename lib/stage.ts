@@ -27,6 +27,7 @@ const EVENT_STAGE: Partial<Record<EventType, Stage>> = {
   ASKED_OPEN: "ASKED_OPEN",
   ASKED_OPEN_REMINDER: "ASKED_OPEN",
   ASKED_OPEN_RESPONSE: "ASKED_OPEN",
+  NOT_NOW: "ASKED_OPEN", // odpowiedź na pytanie bez zamykania: etap zostaje "Zapytano o rozmowę"
   OPEN_TO_TALK: "OPEN_TO_TALK",
   NOT_INTERESTED: "NOT_INTERESTED",
   BOM_PROPOSED: "BOM_PROPOSED",
