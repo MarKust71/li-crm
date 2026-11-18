@@ -85,8 +85,8 @@ const report = {
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE ze znacznikiem 2000-01-01 i dateUnknown=true (decyzja użytkownika 2026-11-18)",
     "Open-To-Talk/NO/Decision-* = TRUE bez daty: najpóźniejsza znana data z wiersza (spec 5.1); gdy brak: data importu. Takie zdarzenia mają dateUnknown=true",
     "Ignored=TRUE → archived, archiveReason=OTHER (powód nie jest zapisany w arkuszu)",
-    "Zakładka Viewers (1000 osób): osoba + tag + VIEWED_MY_PROFILE ze znacznikiem 2000-01-01 (dateUnknown); kolumny przynależności do zakładek (formuły) pominięte",
-    "li-contact-data-store: każda zakładka = tag; contactFrom = nazwa zakładki, gdy puste; zakładka 'viewers' → Source.VIEWERS, reszta → Source.SEARCH",
+    "Zakładka Viewers (1000 osób): osoba + VIEWED_MY_PROFILE (bez tagu 'Viewers' od 2026-11-18) ze znacznikiem 2000-01-01 (dateUnknown); kolumny przynależności do zakładek (formuły) pominięte",
+    "li-contact-data-store: każda zakładka (poza 'viewers') = tag; contactFrom = nazwa zakładki, gdy puste; zakładka 'viewers' → Source.VIEWERS, reszta → Source.SEARCH",
   ],
   totals: {} as Record<string, unknown>,
 };
@@ -246,7 +246,7 @@ function importMainTab(tab: string) {
       }
     }
     c.tabs.add(tab);
-    c.tags.add(tab);
+    if (!isViewers) c.tags.add(tab); // zakładka Viewers bez tagu: pochodzenie niesie zdarzenie Viewed (decyzja 2026-11-18)
     mergeField(c, "name", name, tab);
     mergeField(c, "location", str(get(r, "location")), tab);
     mergeField(c, "occupation", str(get(r, "occupation")), tab);
@@ -391,7 +391,7 @@ function importStoreTab(file: string) {
     if (created) bump(st, "newContacts");
     else bump(st, "mergedIntoExisting");
     c.tabs.add(tab);
-    c.tags.add(snap.sheet.toLowerCase() === "viewers" ? "Viewers" : snap.sheet); // jeden tag dla obu zakładek Viewers
+    if (snap.sheet.toLowerCase() !== "viewers") c.tags.add(snap.sheet); // zakładki Viewers bez tagu (tag usunięty 2026-11-18, informację niesie Viewed)
     mergeField(c, "name", str(get(r, "name")), tab);
     mergeField(c, "location", str(get(r, "location")), tab);
     mergeField(c, "occupation", str(get(r, "occupation")), tab);
