@@ -91,6 +91,7 @@ Schemat bazy: `prisma/schema.prisma`.
 - Znacznik "Viewed" (lista kontaktów i nagłówek karty) to pochodna zdarzeń `VIEWED_MY_PROFILE` (bez pola w schemacie). Ręczne dodanie z karty
   wymaga potwierdzenia (`markViewedAction`, praktycznie nieodwracalne). Oglądanie bez znanej daty = data 2000-01-01 (`VIEWED_UNKNOWN_DATE`,
   `lib/viewed.ts`) z `dateUnknown = true`; wsteczne uzupełnienie z arkuszy: `scripts/backfill-viewed.ts` (wykonane na prod 2026-11-18).
+  Lista kontaktów ma filtr `viewed=1` (pole wyboru „Viewed”, `parseFilters`/`buildWhere`/`filtersQuery`; kryterium: zdarzenie `VIEWED_MY_PROFILE`; spec 13.5).
 
 ## Środowiska
 

@@ -107,7 +107,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
   const hasFilters = Boolean(
-    filters.q || filters.location || filters.occupation || filters.stage || filters.source || filters.added || filters.tag || filters.otw || filters.thread || filters.archived !== "active",
+    filters.q || filters.location || filters.occupation || filters.stage || filters.source || filters.added || filters.tag || filters.otw || filters.viewed || filters.thread || filters.archived !== "active",
   );
 
   const multiOpen = done.archived > 0 || done.restored > 0 || done.skipped > 0 || Boolean(sp.brak || sp.powod);
@@ -121,6 +121,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   if (filters.added) active.push(`Dodano: ${ADDED_RANGES.find((r) => r.value === filters.added)!.label}`);
   if (filters.tag) active.push(`Tag: ${filters.tag}`);
   if (filters.otw) active.push("Open to work");
+  if (filters.viewed) active.push("Viewed");
   if (filters.thread) active.push(filters.thread === "with" ? "Z wątkiem" : "Bez wątku");
   if (filters.archived === "only") active.push("Tylko zarchiwizowane");
   if (filters.archived === "all") active.push("Z zarchiwizowanymi");
@@ -161,7 +162,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
         </summary>
         {/* key z aktualnymi filtrami: po "Wyczyść" lub zmianie adresu pola formularza są tworzone od nowa (defaultValue nie nadpisuje wpisanego już tekstu) */}
         <form
-          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.source, filters.added, filters.tag, filters.otw, filters.thread, filters.archived])}
+          key={JSON.stringify([filters.q, filters.location, filters.occupation, filters.stage, filters.source, filters.added, filters.tag, filters.otw, filters.viewed, filters.thread, filters.archived])}
           className="flex max-h-[45dvh] flex-wrap items-end gap-3 overflow-y-auto border-t p-3"
           method="get"
           action="/contacts"
@@ -257,11 +258,15 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <input type="checkbox" name="otw" value="1" defaultChecked={filters.otw} className="size-4 accent-primary" />
             Open to work
           </Label>
+          <Label className="h-8 gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" name="viewed" value="1" defaultChecked={filters.viewed} className="size-4 accent-primary" />
+            Viewed
+          </Label>
           <div className="flex items-center gap-2">
             <Button type="submit">Filtruj</Button>
             {hasFilters && (
               <Button asChild variant="ghost">
-                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", source: "", added: "", tag: "", otw: false, thread: "", archived: "active" }, 1)}>Wyczyść</Link>
+                <Link href={pageHref({ ...filters, q: "", location: "", occupation: "", stage: "", source: "", added: "", tag: "", otw: false, viewed: false, thread: "", archived: "active" }, 1)}>Wyczyść</Link>
               </Button>
             )}
           </div>

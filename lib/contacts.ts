@@ -33,6 +33,8 @@ export type ContactFilters = {
   added: AddedRange | "";
   tag: string;
   otw: boolean;
+  /** Tylko kontakty ze zdarzeniem „Wyświetlił(a) mój profil” (znacznik „Viewed”). */
+  viewed: boolean;
   /** Wątek LinkedIn: tylko kontakty z zapisanym wątkiem / tylko bez niego. */
   thread: "" | "with" | "without";
   archived: ArchivedFilter;
@@ -64,6 +66,7 @@ export function parseFilters(params: RawParams): ContactFilters {
     added: ADDED_RANGES.some((r) => r.value === added) ? (added as AddedRange) : "",
     tag: first(params.tag).slice(0, 200),
     otw: first(params.otw) === "1",
+    viewed: first(params.viewed) === "1",
     thread: first(params.thread) === "with" ? "with" : first(params.thread) === "without" ? "without" : "",
     archived: archived === "only" || archived === "all" ? archived : "active",
     sort: validSort ? (sort as SortKey) : "",
@@ -94,6 +97,7 @@ function buildWhere(f: ContactFilters): Prisma.ContactWhereInput {
   }
   if (f.tag) and.push({ tags: { some: { tag: { name: f.tag } } } });
   if (f.otw) and.push({ openToWork: true });
+  if (f.viewed) and.push({ events: { some: { type: "VIEWED_MY_PROFILE" } } });
   if (f.thread === "with") and.push({ threadUrl: { not: null } });
   if (f.thread === "without") and.push({ threadUrl: null });
   if (f.archived === "active") and.push({ archived: false });
@@ -298,6 +302,7 @@ export function filtersQuery(f: ContactFilters, page: number): string {
   if (f.added) p.set("added", f.added);
   if (f.tag) p.set("tag", f.tag);
   if (f.otw) p.set("otw", "1");
+  if (f.viewed) p.set("viewed", "1");
   if (f.thread) p.set("thread", f.thread);
   if (f.archived !== "active") p.set("archived", f.archived);
   if (f.sort) {
