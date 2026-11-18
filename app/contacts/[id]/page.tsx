@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
 import { ViewedBadge } from "@/components/viewed-badge";
@@ -214,6 +215,8 @@ async function ContactCard({ params, searchParams }: Props) {
 
   const errorKey = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   const error = errorKey ? ERRORS[errorKey] : undefined;
+  const takenRaw = Array.isArray(sp.taken) ? sp.taken[0] : sp.taken;
+  const takenContact = errorKey === "profile-taken" && takenRaw ? await prisma.contact.findUnique({ where: { id: takenRaw }, select: { id: true, name: true } }) : null;
   const today = todayWarsaw();
   const openReminders = reminders.filter((r) => r.status === "OPEN").length;
   const meetings = upcomingMeetings(contact.events, new Date());
@@ -247,7 +250,17 @@ async function ContactCard({ params, searchParams }: Props) {
 
       {error && (
         <Alert variant="destructive" role="alert" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {takenContact && (
+              <>
+                {" "}
+                <Link href={`/contacts/${takenContact.id}`} className="font-medium underline">
+                  Przejdź do kontaktu: {takenContact.name}
+                </Link>
+              </>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

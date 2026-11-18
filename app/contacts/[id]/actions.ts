@@ -27,11 +27,11 @@ async function contactIdFrom(formData: FormData): Promise<string> {
   return id;
 }
 
-async function done(id: string, error?: string): Promise<never> {
+async function done(id: string, error?: string, extra?: Record<string, string>): Promise<never> {
   revalidatePath(`/contacts/${id}`);
   revalidatePath("/contacts");
   const from = await refererListQuery();
-  const qs = [from ? `from=${encodeURIComponent(from)}` : "", error ? `error=${error}` : ""].filter(Boolean).join("&");
+  const qs = [from ? `from=${encodeURIComponent(from)}` : "", error ? `error=${error}` : "", ...Object.entries(extra ?? {}).map(([k, v]) => `${k}=${encodeURIComponent(v)}`)].filter(Boolean).join("&");
   redirect(qs ? `/contacts/${id}?${qs}` : `/contacts/${id}`);
 }
 
@@ -117,7 +117,7 @@ export async function updateDetailsAction(formData: FormData) {
   if (profileRaw && !profileUrl) await done(id, "profile");
   if (profileUrl) {
     const taken = await prisma.contact.findFirst({ where: { profileUrl, id: { not: id } }, select: { id: true } });
-    if (taken) await done(id, "profile-taken");
+    if (taken) await done(id, "profile-taken", { taken: taken.id });
   }
   await updateContactDetails(id, {
     name: text(formData.get("name"), 200), // puste pole = bez zmiany imienia
