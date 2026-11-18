@@ -43,7 +43,7 @@ export async function addEventTx(
   tx: Prisma.TransactionClient,
   contactId: string,
   data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; /** occurredAt to znacznik (np. 2000-01-01), nie prawdziwa data */ dateUnknown?: boolean; sync?: EventSyncData },
-  opts: { fromCalendar?: boolean; /** pomija wpis w dzienniku (np. import zbiorczy zapisuje jedno podsumowanie) */ skipLog?: boolean } = {},
+  opts: { fromCalendar?: boolean; /** nie zakładaj standardowych przypomnień po „Zapytano o rozmowę” (wybór użytkownika) */ skipFollowUps?: boolean; /** pomija wpis w dzienniku (np. import zbiorczy zapisuje jedno podsumowanie) */ skipLog?: boolean } = {},
 ): Promise<EventResult> {
   if (isMeetingType(data.type) && !data.scheduledAt) return { ok: false, error: "no-schedule" };
   if (data.type === "FOLLOW_UP") {
@@ -62,7 +62,7 @@ export async function addEventTx(
     },
   });
   await recomputeStage(tx, contactId);
-  await applyEventAutomations(tx, contactId, data.type, data.occurredAt);
+  await applyEventAutomations(tx, contactId, data.type, data.occurredAt, { skipFollowUps: opts.skipFollowUps });
   // Decyzja (tak/nie) zamyka sprawę, a "Nie chce rozmawiać" kończy rozmowy: kontakt trafia do archiwum, a otwarte
   // przypomnienia tracą sens. Już zarchiwizowany zostaje przy swoim powodzie i dacie.
   const autoReason = AUTO_ARCHIVE_REASON[data.type];
@@ -94,8 +94,9 @@ export const AUTO_ARCHIVE_REASON: Partial<Record<EventType, ArchiveReason>> = {
 export async function addContactEvent(
   contactId: string,
   data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; dateUnknown?: boolean },
+  opts: { skipFollowUps?: boolean } = {},
 ): Promise<EventResult> {
-  return prisma.$transaction((tx) => addEventTx(tx, contactId, data));
+  return prisma.$transaction((tx) => addEventTx(tx, contactId, data, opts));
 }
 
 export type DeleteResult = { ok: true; contactId: string } | { ok: false; error: "not-found" | "has-follow-up" };

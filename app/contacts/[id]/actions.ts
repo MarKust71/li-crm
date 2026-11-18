@@ -55,7 +55,7 @@ export async function addEventAction(formData: FormData) {
     message: formData.get("suggestionUntouched") === "1" && text(formData.get("suggestedFor"), 40) !== type ? null : text(formData.get("message"), 5000),
     // termin spotkania ma sens tylko dla BOM umówionego i follow-upu (trafiają do kalendarza)
     scheduledAt: type === "BOM_SCHEDULED" || type === "FOLLOW_UP" ? scheduledAt : null,
-  });
+  }, { skipFollowUps: formData.get("standardReminders") === "0" });
   await done(id, result.ok ? undefined : result.error);
 }
 
