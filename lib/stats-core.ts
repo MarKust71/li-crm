@@ -4,7 +4,7 @@ import { addDays, parseDateInput } from "./dates";
 // Czysta logika statystyk (bez bazy): definicje kroków lejka, okresy, przedziały czasu. Zapytania: lib/stats.ts.
 
 export type StepKey =
-  | "invite" | "accepted" | "thanked" | "asked" | "responded" | "open" | "notOpen"
+  | "invite" | "accepted" | "thanked" | "asked" | "responded" | "open" | "notNow" | "notOpen"
   | "proposed" | "scheduled" | "confirmed" | "canceled" | "completed" | "yes" | "no";
 
 export type Step = { key: StepKey; label: string; types: EventType[]; parent: StepKey | null };
@@ -17,6 +17,7 @@ export const STEPS: Step[] = [
   { key: "asked", label: "Zapytano o rozmowę", types: ["ASKED_OPEN"], parent: "accepted" },
   { key: "responded", label: "Reakcja na pytanie", types: ["ASKED_OPEN_RESPONSE"], parent: "asked" },
   { key: "open", label: "Chce rozmawiać", types: ["OPEN_TO_TALK"], parent: "asked" },
+  { key: "notNow", label: "Nie teraz", types: ["NOT_NOW"], parent: "asked" },
   { key: "notOpen", label: "Nie chce rozmawiać", types: ["NOT_INTERESTED"], parent: "asked" },
   { key: "proposed", label: "Zaproponowano BOM", types: ["BOM_PROPOSED"], parent: "open" },
   { key: "scheduled", label: "BOM umówiony", types: ["BOM_SCHEDULED"], parent: "proposed" },

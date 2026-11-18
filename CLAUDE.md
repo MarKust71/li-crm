@@ -65,7 +65,9 @@ Schemat bazy: `prisma/schema.prisma`.
   (`source = AUTO`, `kind = REMINDER`) po 7 dniach, 4 tygodniach (28 dni) i 6 miesiącach od daty zdarzenia, z gotową treścią w `note`
   (`followUp*Message` w `lib/invite-message.ts`; zwrot z `salutation` wpisany w chwili utworzenia, bez zwrotu pomijany, forma męska
   przy "Pan…/Panie…"). Powtórne pytanie nie dubluje otwartych. Odpowiedź (`ASKED_OPEN_RESPONSE`, `OPEN_TO_TALK`, `NOT_INTERESTED`)
-  albo usunięcie jedynego `ASKED_OPEN` anuluje otwarte (`cancelFollowUps`). Bez zmian schematu: rozpoznajemy je po AUTO + REMINDER.
+  albo usunięcie jedynego `ASKED_OPEN` anuluje otwarte (`cancelFollowUps`).
+  Wyjątek: `NOT_NOW` („Nie teraz", odpowiedź na pytanie o rozmowę) nie anuluje przypomnień, nie archiwizuje i nie zmienia etapu (zostaje
+  „Zapytano o rozmowę", `lib/stage.ts`); w statystykach to osobny krok `notNow` pod „Zapytano o rozmowę". Bez zmian schematu: rozpoznajemy je po AUTO + REMINDER.
 
 - Dziennik aktywności (`/log`, tabela `ActivityLog`): każda zmiana danych, przebieg synchronizacji, powiadomienie i logowanie zostawia wpis
   przez `logActivity` (`lib/activity-log.ts`), wołany z warstwy domenowej, a nie z UI (żeby zmiany z synchronizacji też się logowały).

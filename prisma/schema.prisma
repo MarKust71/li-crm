@@ -136,6 +136,7 @@ enum EventType {
   ASKED_OPEN_RESPONSE    // A-Y-O-Response: data pierwszej reakcji na pytanie; decyzja może być od razu lub później
   OPEN_TO_TALK           // A-Y-O-Decision (data) gdy Open-To-Talk = TRUE
   NOT_INTERESTED         // A-Y-O-Decision (data) gdy NO = TRUE, + NO-Response-Text
+  NOT_NOW                // odpowiedź "Nie teraz" na pytanie o rozmowę (nie zamyka kontaktu, przypomnienia zostają)
   BOM_PROPOSED       // Meet-Proposal + Meet-Proposal-Text
   BOM_PROPOSAL_REMINDER // Meet-Proposal-Reminder + -Text
   BOM_SCHEDULED           // BP-Date → scheduledAt
