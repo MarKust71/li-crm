@@ -28,3 +28,6 @@ npm-debug.log*
 # dane osobowe z arkuszy i klucze (repo jest publiczne)
 /data/
 /secrets/
+
+# kopie bazy (dane osobowe, nigdy do repozytorium)
+/_backups/
