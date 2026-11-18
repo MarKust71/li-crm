@@ -66,6 +66,9 @@ Schemat bazy: `prisma/schema.prisma`.
   (`followUp*Message` w `lib/invite-message.ts`; zwrot z `salutation` wpisany w chwili utworzenia, bez zwrotu pomijany, forma męska
   przy "Pan…/Panie…"). Powtórne pytanie nie dubluje otwartych. Odpowiedź (`ASKED_OPEN_RESPONSE`, `OPEN_TO_TALK`, `NOT_INTERESTED`)
   albo usunięcie jedynego `ASKED_OPEN` anuluje otwarte (`cancelFollowUps`).
+  W UI (karta kontaktu) dodanie `ASKED_OPEN` poprzedza pytanie „Czy dodać standardowe powiadomienia?” Tak/Nie/Anuluj (`components/asked-open-form.tsx`,
+  pole `standardReminders` → `skipFollowUps` w `addContactEvent`/`addEventTx`/`applyEventAutomations`); Nie = zdarzenie bez przypomnień. Kalendarz,
+  import i skrypty nie pytają (domyślnie przypomnienia powstają).
   Wyjątek: `NOT_NOW` („Nie teraz", odpowiedź na pytanie o rozmowę) nie anuluje przypomnień, nie archiwizuje i nie zmienia etapu (zostaje
   „Zapytano o rozmowę", `lib/stage.ts`); w statystykach to osobny krok `notNow` pod „Zapytano o rozmowę". Bez zmian schematu: rozpoznajemy je po AUTO + REMINDER.
 
@@ -90,7 +93,7 @@ Schemat bazy: `prisma/schema.prisma`.
   Popup "People you may know" (`content4.js`, `source = people_you_may_know`): `/api/ingest/people-you-may-know`; nowe osoby NIE są kontaktami, trafiają do
   poczekalni (`Candidate`, `lib/candidates.ts`, strona `/inbox`), skąd użytkownik dodaje wybranych jako kontakty (`source = PYMK`) albo odrzuca (odrzuceni nie wracają).
   Lista oglądających też idzie przez poczekalnię (wpis `source = VIEWERS` + `CandidateView`, po dodaniu kontaktu stają się zdarzeniami `VIEWED_MY_PROFILE`; spec 13.1).
-  "Open to work" znanym kontaktom ustawiamy wg odczytu w obie strony we wszystkich trzech importach (`syncOpenToWork` w `lib/ingest.ts`; brak pola = bez zmiany). Kontaktów nie usuwamy: błędny kontakt się archiwizuje. Lista kontaktów filtruje po źródle i dacie dodania i sortuje po "Dodano" (spec 13.5); filtr to parametry URL, nowe filtry dopisuj w `parseFilters`/`buildWhere`/`filtersQuery`. Kontakt założony inną drogą czyści swój wpis w poczekalni (`dropCandidates`). Spec 13.3 i 13.4.
+  "Open to work" znanym kontaktom ustawiamy wg odczytu w obie strony we wszystkich trzech importach (`syncOpenToWork` w `lib/ingest.ts`; brak pola = bez zmiany). Kontaktów nie usuwamy: błędny kontakt się archiwizuje. Adres profilu da się poprawić w „Edytuj dane” (`updateDetailsAction`: `normalizeProfileUrl`, błąd przy niepoprawnym i przy zajętym przez inny kontakt, bo `profileUrl` jest unikalny). Lista kontaktów filtruje po źródle i dacie dodania i sortuje po "Dodano" (spec 13.5); filtr to parametry URL, nowe filtry dopisuj w `parseFilters`/`buildWhere`/`filtersQuery`. Kontakt założony inną drogą czyści swój wpis w poczekalni (`dropCandidates`). Spec 13.3 i 13.4.
 
 - Znacznik "Viewed" (lista kontaktów i nagłówek karty) to pochodna zdarzeń `VIEWED_MY_PROFILE` (bez pola w schemacie). Ręczne dodanie z karty
   wymaga potwierdzenia (`markViewedAction`, praktycznie nieodwracalne). Oglądanie bez znanej daty = data 2000-01-01 (`VIEWED_UNKNOWN_DATE`,
