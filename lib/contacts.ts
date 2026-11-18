@@ -1,4 +1,5 @@
 import type { Prisma, Source, Stage } from "@prisma/client";
+import { connection } from "next/server";
 import { prisma } from "./prisma";
 import { compareNames, parseSearch } from "./contacts-search";
 import { addDays, parseDateInput, todayWarsaw } from "./dates";
@@ -164,6 +165,7 @@ async function lastActivityFor(ids?: string[]) {
 }
 
 export async function listContacts(f: ContactFilters) {
+  await connection(); // filtr „Dodano” czyta bieżący czas (buildWhere): ma się wykonać przy żądaniu, nie przy prerenderze
   const where = buildWhere(f);
   if (f.sort === "activity") return listByActivity(f, where);
   if (f.sort === "occupation") return listByOccupation(f, where);
@@ -276,6 +278,7 @@ async function idsByColumns(f: ContactFilters, where: Prisma.ContactWhereInput) 
 
 /** Wszystkie id pasujące do filtrów w kolejności listy (do nawigacji "poprzedni / następny" na karcie kontaktu). */
 async function allIds(f: ContactFilters): Promise<string[]> {
+  await connection(); // jak w listContacts: buildWhere czyta bieżący czas
   const where = buildWhere(f);
   if (f.sort === "activity") return (await idsByActivity(f, where)).ids;
   if (f.sort === "occupation") return idsByOccupation(f, where);
