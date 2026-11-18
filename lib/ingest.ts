@@ -234,7 +234,13 @@ export async function ingestProfile(item: ProfileInput): Promise<{ report: Profi
  * zarchiwizowany zostaje zarchiwizowany. Imię pochodzi z przycisku „Invite … to connect” tej samej karty, więc bez straży imienia jak przy liście oglądających.
  * Bez zdarzeń (etap się nie zmienia). Zapisy zbiorcze; ponowienie tego samego żądania jest bezpieczne.
  */
-export async function ingestPymk(items: PymkInput[], invalidCount: number): Promise<{ report: PymkReport; message: string }> {
+export async function ingestPymk(
+  items: PymkInput[],
+  invalidCount: number,
+  kind: "PYMK" | "MORE_PROFILES" = "PYMK",
+): Promise<{ report: PymkReport; message: string }> {
+  const label = kind === "MORE_PROFILES" ? "More profiles" : "People you may know";
+  const action = kind === "MORE_PROFILES" ? "ingest.more_profiles" : "ingest.pymk";
   const report: PymkReport = {
     received: items.length + invalidCount,
     skipped: invalidCount,
@@ -267,7 +273,7 @@ export async function ingestPymk(items: PymkInput[], invalidCount: number): Prom
     report.known = known.size;
 
     // nie-kontakty → poczekalnia
-    const queue = await upsertCandidates(people.filter((p) => !known.has(p.profileUrl)));
+    const queue = await upsertCandidates(people.filter((p) => !known.has(p.profileUrl)).map((p) => ({ ...p, source: kind })));
     report.queued = queue.created;
     report.queuedOpenToWork = queue.created.filter((c) => c.openToWork).length;
     report.alreadyQueued = queue.pending;
@@ -282,20 +288,20 @@ export async function ingestPymk(items: PymkInput[], invalidCount: number): Prom
       await prisma.$transaction(fills.map((p) => prisma.contact.update({ where: { id: known.get(p.profileUrl)!.id }, data: { occupation: p.occupation } })));
       report.occupationFilled = fills.length;
     }
-    const otw = await syncOpenToWork(people, known, "„People you may know”");
+    const otw = await syncOpenToWork(people, known, `„${label}”`);
     report.openToWorkSet = otw.set;
     report.openToWorkCleared = otw.cleared;
     // osoba, która stała się kontaktem inną drogą, nie powinna wisieć w poczekalni
     await dropCandidates([...known.keys()]);
   } catch (e) {
-    await logActivity({ source: "SYNC", action: "ingest.pymk", level: "ERROR", summary: `People you may know: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
+    await logActivity({ source: "SYNC", action, level: "ERROR", summary: `${label}: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
     throw e;
   }
 
   await logActivity({
     source: "SYNC",
-    action: "ingest.pymk",
-    summary: `People you may know: sprawdzono ${report.received - report.skipped}, do poczekalni ${report.queued.length}, już czekało ${report.alreadyQueued}, odrzuconych ${report.rejected}, kontaktów ${report.known}`,
+    action,
+    summary: `${label}: sprawdzono ${report.received - report.skipped}, do poczekalni ${report.queued.length}, już czekało ${report.alreadyQueued}, odrzuconych ${report.rejected}, kontaktów ${report.known}`,
     details: {
       received: report.received,
       skipped: report.skipped,
@@ -309,5 +315,5 @@ export async function ingestPymk(items: PymkInput[], invalidCount: number): Prom
       openToWorkCleared: report.openToWorkCleared,
     },
   });
-  return { report, message: pymkReportText(report) };
+  return { report, message: pymkReportText(report, label) };
 }
