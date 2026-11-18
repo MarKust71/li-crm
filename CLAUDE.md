@@ -88,6 +88,10 @@ Schemat bazy: `prisma/schema.prisma`.
   Lista oglądających też idzie przez poczekalnię (wpis `source = VIEWERS` + `CandidateView`, po dodaniu kontaktu stają się zdarzeniami `VIEWED_MY_PROFILE`; spec 13.1).
   "Open to work" znanym kontaktom ustawiamy wg odczytu w obie strony we wszystkich trzech importach (`syncOpenToWork` w `lib/ingest.ts`; brak pola = bez zmiany). Kontaktów nie usuwamy: błędny kontakt się archiwizuje. Lista kontaktów filtruje po źródle i dacie dodania i sortuje po "Dodano" (spec 13.5); filtr to parametry URL, nowe filtry dopisuj w `parseFilters`/`buildWhere`/`filtersQuery`. Kontakt założony inną drogą czyści swój wpis w poczekalni (`dropCandidates`). Spec 13.3 i 13.4.
 
+- Znacznik "Viewed" (lista kontaktów i nagłówek karty) to pochodna zdarzeń `VIEWED_MY_PROFILE` (bez pola w schemacie). Ręczne dodanie z karty
+  wymaga potwierdzenia (`markViewedAction`, praktycznie nieodwracalne). Oglądanie bez znanej daty = data 2000-01-01 (`VIEWED_UNKNOWN_DATE`,
+  `lib/viewed.ts`) z `dateUnknown = true`; wsteczne uzupełnienie z arkuszy: `scripts/backfill-viewed.ts` (wykonane na prod 2026-11-18).
+
 ## Środowiska
 
 - Dev: Postgres w lokalnym Dockerze (`docker compose up -d db`).
