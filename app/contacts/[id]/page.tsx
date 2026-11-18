@@ -52,6 +52,8 @@ const ERRORS: Record<string, string> = {
   type: "Nieznany typ zdarzenia.",
   date: "Niepoprawna data.",
   reason: "Wybierz powód archiwizacji.",
+  profile: "Adres profilu musi mieć postać https://www.linkedin.com/in/… Nic nie zapisano.",
+  "profile-taken": "Inny kontakt ma już ten adres profilu. Nic nie zapisano.",
   thread: "Adres wątku musi mieć postać https://www.linkedin.com/messaging/thread/… (skopiuj go z paska adresu rozmowy na LinkedIn). Nic nie zapisano.",
   notfound: "Nie znaleziono przypomnienia (mogło zostać już zmienione lub usunięte).",
   delay: "Podaj liczbę od 1 do 3650 i jednostkę.",
@@ -357,6 +359,10 @@ async function ContactCard({ params, searchParams }: Props) {
                       </span>
                     </label>
                   )}
+                </div>
+                <div className={field}>
+                  <Label htmlFor="profileUrl">Profil LinkedIn (adres)</Label>
+                  <Input id="profileUrl" name="profileUrl" defaultValue={contact.profileUrl} maxLength={500} required />
                 </div>
                 <div className={field}>
                   <Label htmlFor="threadUrl">Wątek LinkedIn (adres rozmowy)</Label>

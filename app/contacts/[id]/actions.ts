@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { normalizeThreadUrl } from "@/lib/calendar-parse";
 import { addContactEvent, deleteContactEvent, setArchived, setOpenToWork, updateContactDetails } from "@/lib/contact-events";
+import { normalizeProfileUrl } from "@/lib/profile-url";
 import { VIEWED_UNKNOWN_DATE } from "@/lib/viewed";
 import { refererListQuery } from "@/lib/list-context";
 import { prisma } from "@/lib/prisma";
@@ -110,8 +111,17 @@ export async function updateDetailsAction(formData: FormData) {
   // adres wątku LinkedIn: puste = brak, niepoprawny = błąd (nic nie zapisujemy)
   const threadUrl = normalizeThreadUrl(text(formData.get("threadUrl"), 500));
   if (threadUrl === null) await done(id, "thread");
+  // adres profilu = klucz unikalności kontaktu: normalizujemy (spec 6.1), pusty = bez zmiany, zajęty przez inny kontakt = błąd
+  const profileRaw = text(formData.get("profileUrl"), 500);
+  const profileUrl = profileRaw ? normalizeProfileUrl(profileRaw) : null;
+  if (profileRaw && !profileUrl) await done(id, "profile");
+  if (profileUrl) {
+    const taken = await prisma.contact.findFirst({ where: { profileUrl, id: { not: id } }, select: { id: true } });
+    if (taken) await done(id, "profile-taken");
+  }
   await updateContactDetails(id, {
     name: text(formData.get("name"), 200), // puste pole = bez zmiany imienia
+    profileUrl,
     occupation: text(formData.get("occupation"), 300),
     location: text(formData.get("location"), 200),
     threadUrl: threadUrl || null,
