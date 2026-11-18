@@ -8,6 +8,7 @@ import {
   listContacts,
   filtersQuery,
   listTagNames,
+  NO_TAG,
   parseFilters,
   type ContactFilters,
   type SortKey,
@@ -119,7 +120,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
   if (filters.stage) active.push(`Etap: ${STAGE_LABEL[filters.stage]}`);
   if (filters.source) active.push(`Źródło: ${SOURCE_LABEL[filters.source]}`);
   if (filters.added) active.push(`Dodano: ${ADDED_RANGES.find((r) => r.value === filters.added)!.label}`);
-  if (filters.tag) active.push(`Tag: ${filters.tag}`);
+  if (filters.tag) active.push(`Tag: ${filters.tag === NO_TAG ? "bez tagu" : filters.tag}`);
   if (filters.otw) active.push("Open to work");
   if (filters.viewed) active.push("Viewed");
   if (filters.thread) active.push(filters.thread === "with" ? "Z wątkiem" : "Bez wątku");
@@ -231,6 +232,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
             <Label htmlFor="tag">Tag</Label>
             <NativeSelect id="tag" name="tag" defaultValue={filters.tag}>
               <NativeSelectOption value="">Wszystkie</NativeSelectOption>
+              <NativeSelectOption value={NO_TAG}>(bez tagu)</NativeSelectOption>
               {tags.map((t) => (
                 <NativeSelectOption key={t} value={t}>
                   {t}
