@@ -42,7 +42,7 @@ async function markMeetingsPending(tx: Prisma.TransactionClient, contactId: stri
 export async function addEventTx(
   tx: Prisma.TransactionClient,
   contactId: string,
-  data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; sync?: EventSyncData },
+  data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; /** occurredAt to znacznik (np. 2000-01-01), nie prawdziwa data */ dateUnknown?: boolean; sync?: EventSyncData },
   opts: { fromCalendar?: boolean; /** pomija wpis w dzienniku (np. import zbiorczy zapisuje jedno podsumowanie) */ skipLog?: boolean } = {},
 ): Promise<EventResult> {
   if (isMeetingType(data.type) && !data.scheduledAt) return { ok: false, error: "no-schedule" };
@@ -55,6 +55,7 @@ export async function addEventTx(
       contactId,
       type: data.type,
       occurredAt: data.occurredAt,
+      dateUnknown: data.dateUnknown ?? false,
       message: data.message ?? null,
       scheduledAt: isMeetingType(data.type) ? (data.scheduledAt ?? null) : null,
       ...(data.sync ? { ...data.sync, syncState: "SYNCED" as const } : {}),
@@ -74,7 +75,7 @@ export async function addEventTx(
       action: "event.added",
       contactId,
       summary: `${EVENT_LABEL[data.type]}: ${await contactName(contactId, tx)}${opts.fromCalendar ? " (z kalendarza)" : ""}`,
-      details: { type: data.type, occurredAt: data.occurredAt.toISOString(), ...(data.scheduledAt ? { scheduledAt: data.scheduledAt.toISOString() } : {}) },
+      details: { type: data.type, occurredAt: data.occurredAt.toISOString(), ...(data.dateUnknown ? { dateUnknown: true } : {}), ...(data.scheduledAt ? { scheduledAt: data.scheduledAt.toISOString() } : {}) },
     },
     tx,
   );
@@ -84,7 +85,7 @@ export async function addEventTx(
 
 export async function addContactEvent(
   contactId: string,
-  data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null },
+  data: { type: EventType; occurredAt: Date; message?: string | null; scheduledAt?: Date | null; dateUnknown?: boolean },
 ): Promise<EventResult> {
   return prisma.$transaction((tx) => addEventTx(tx, contactId, data));
 }

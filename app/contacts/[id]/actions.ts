@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { normalizeThreadUrl } from "@/lib/calendar-parse";
 import { addContactEvent, deleteContactEvent, setArchived, setOpenToWork, updateContactDetails } from "@/lib/contact-events";
+import { VIEWED_UNKNOWN_DATE } from "@/lib/viewed";
 import { refererListQuery } from "@/lib/list-context";
 import { prisma } from "@/lib/prisma";
 import { ALL_EVENT_TYPES, ARCHIVE_REASONS } from "@/lib/labels";
@@ -69,6 +70,15 @@ export async function deleteEventAction(formData: FormData) {
     await done(owner!.contactId, result.error);
   }
   await done(result.ok ? result.contactId : "");
+}
+
+/** Ręczne „Viewed”: dodaje zdarzenie tylko gdy kontaktu jeszcze nie ma (podwójne kliknięcie nie dubluje). Data nieznana: znacznik 2000-01-01. */
+export async function markViewedAction(formData: FormData) {
+  await requireAccess();
+  const id = await contactIdFrom(formData);
+  const has = await prisma.contactEvent.count({ where: { contactId: id, type: "VIEWED_MY_PROFILE" } });
+  if (!has) await addContactEvent(id, { type: "VIEWED_MY_PROFILE", occurredAt: VIEWED_UNKNOWN_DATE, dateUnknown: true });
+  await done(id);
 }
 
 export async function archiveAction(formData: FormData) {

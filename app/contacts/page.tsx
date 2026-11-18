@@ -350,6 +350,7 @@ async function ContactsContent({ searchParams }: { searchParams: SearchParams })
                       {c.name}
                     </Link>
                     {c.openToWork && <Badge>OTW</Badge>}
+                    {c.viewed && <Badge variant="secondary" title="Wyświetlił(a) mój profil">Viewed</Badge>}
                     {c.archived && <Badge variant="outline">zarchiwizowany</Badge>}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">

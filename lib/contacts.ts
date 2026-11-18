@@ -115,6 +115,8 @@ const SELECT = {
   openToWork: true,
   archived: true,
   tags: { select: { tag: { select: { name: true } } } },
+  // znacznik „Viewed” na liście: czy kontakt ma zdarzenie „Wyświetlił(a) mój profil”
+  _count: { select: { events: { where: { type: "VIEWED_MY_PROFILE" } } } },
 } satisfies Prisma.ContactSelect;
 
 type Row = Prisma.ContactGetPayload<{ select: typeof SELECT }>;
@@ -125,9 +127,10 @@ export function cleanOccupation(v: string | null): string | null {
   return t && !/^[-–—.\s]+$/.test(t) ? t : null;
 }
 
-function toRow(r: Row, lastActivity: Date | null) {
+function toRow({ _count, ...r }: Row, lastActivity: Date | null) {
   return {
     ...r,
+    viewed: _count.events > 0,
     occupation: cleanOccupation(r.occupation),
     tags: r.tags.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b, "pl")),
     lastActivity,
