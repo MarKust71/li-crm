@@ -63,11 +63,12 @@ export async function addEventTx(
   });
   await recomputeStage(tx, contactId);
   await applyEventAutomations(tx, contactId, data.type, data.occurredAt);
-  // Decyzja (tak/nie) zamyka sprawę: kontakt trafia do archiwum, a otwarte przypomnienia tracą sens.
-  // Już zarchiwizowany zostaje przy swoim powodzie i dacie.
-  if (data.type === "DECISION_YES" || data.type === "DECISION_NO") {
+  // Decyzja (tak/nie) zamyka sprawę, a "Nie chce rozmawiać" kończy rozmowy: kontakt trafia do archiwum, a otwarte
+  // przypomnienia tracą sens. Już zarchiwizowany zostaje przy swoim powodzie i dacie.
+  const autoReason = AUTO_ARCHIVE_REASON[data.type];
+  if (autoReason) {
     const c = await tx.contact.findUnique({ where: { id: contactId }, select: { archived: true } });
-    if (c && !c.archived) await setArchivedTx(tx, contactId, "DECISION_MADE", { cancelReminders: true, source: opts.fromCalendar ? "SYNC" : "UI", trigger: data.type });
+    if (c && !c.archived) await setArchivedTx(tx, contactId, autoReason, { cancelReminders: true, source: opts.fromCalendar ? "SYNC" : "UI", trigger: data.type });
   }
   if (!opts.skipLog) await logActivity(
     {
@@ -82,6 +83,13 @@ export async function addEventTx(
   if (!opts.fromCalendar && affectsMeetings(data.type)) await markMeetingsPending(tx, contactId);
   return { ok: true };
 }
+
+/** Zdarzenia, które same archiwizują kontakt, i powód archiwizacji. */
+export const AUTO_ARCHIVE_REASON: Partial<Record<EventType, ArchiveReason>> = {
+  DECISION_YES: "DECISION_MADE",
+  DECISION_NO: "DECISION_MADE",
+  NOT_INTERESTED: "NO_CONVERSATION",
+};
 
 export async function addContactEvent(
   contactId: string,
