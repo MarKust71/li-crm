@@ -358,8 +358,12 @@ function importMainTab(tab: string) {
     if (truthy(get(r, "decision-yes"))) push({ type: "DECISION_YES", occurredAt: impute("DECISION_YES"), dateUnknown: true });
     if (truthy(get(r, "decision-no"))) push({ type: "DECISION_NO", occurredAt: impute("DECISION_NO"), dateUnknown: true });
 
-    if (truthy(get(r, "viewed")) || truthy(get(r, "onviewerslist"))) {
-      // Viewed/onViewersList to flagi bez daty: nie tworzymy zdarzenia z zadaną datą
+    // "Viewed" w zakładce "Oglądali mnie" bywa datą (liczba seryjna Excela), a nie flagą: wtedy zdarzenie z prawdziwą datą.
+    // Nie przez push(), żeby ta data nie zmieniała datowania (imputacji) pozostałych zdarzeń wiersza.
+    const viewedAt = d("viewed");
+    if (viewedAt) addEvent(c, { type: "VIEWED_MY_PROFILE", occurredAt: viewedAt });
+    else if (truthy(get(r, "viewed")) || truthy(get(r, "onviewerslist"))) {
+      // sama flaga bez daty: nie tworzymy zdarzenia z zadaną datą
       bump(report.skippedEvents, "VIEWED_MY_PROFILE bez daty");
     }
   }
