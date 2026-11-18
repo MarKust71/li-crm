@@ -182,7 +182,7 @@ export async function cancelFollowUps(tx: Tx, contactId: string) {
  *  - wycofanie zaproszenia → przypomnienie RECONNECT za 3 tygodnie (o ile kontakt nie ma już otwartego),
  *  - ponowne zaproszenie (INVITE_SENT) → zamyka otwarty RECONNECT jako odbyty.
  */
-export async function applyEventAutomations(tx: Tx, contactId: string, type: string, occurredAt: Date) {
+export async function applyEventAutomations(tx: Tx, contactId: string, type: string, occurredAt: Date, opts: { skipFollowUps?: boolean } = {}) {
   if (type === "INVITE_WITHDRAWN") {
     const open = await tx.reminder.count({ where: { contactId, kind: "RECONNECT", status: "OPEN" } });
     if (open === 0) {
@@ -193,7 +193,8 @@ export async function applyEventAutomations(tx: Tx, contactId: string, type: str
       }
     }
   } else if (type === "ASKED_OPEN") {
-    await createFollowUps(tx, contactId, occurredAt);
+    // użytkownik mógł odmówić standardowych przypomnień (pytanie w UI: Tak/Nie)
+    if (!opts.skipFollowUps) await createFollowUps(tx, contactId, occurredAt);
   } else if (type === "ASKED_OPEN_RESPONSE" || type === "OPEN_TO_TALK" || type === "NOT_INTERESTED") {
     // osoba odpowiedziała, więc "przypominajki" nie mają sensu
     await cancelFollowUps(tx, contactId);

@@ -32,6 +32,7 @@ import {
   STAGE_LABEL,
   nextSteps,
 } from "@/lib/labels";
+import { AskedOpenForm } from "@/components/asked-open-form";
 import {
   addEventAction,
   archiveAction,
@@ -432,7 +433,7 @@ async function ContactCard({ params, searchParams }: Props) {
             <CardTitle>Następny krok</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={addEventAction} className="flex flex-col gap-3">
+            <AskedOpenForm action={addEventAction} className="flex flex-col gap-3">
               <input type="hidden" name="id" value={contact.id} />
               <div className={field}>
                 <Label htmlFor="next-date">Data</Label>
@@ -465,11 +466,11 @@ async function ContactCard({ params, searchParams }: Props) {
                   Dla tego etapu nie ma proponowanego kroku. Użyj „Inne zdarzenie”.
                 </p>
               )}
-            </form>
+            </AskedOpenForm>
 
             <details className="mt-3.5 text-sm">
               <summary className={summary}>Inne zdarzenie</summary>
-              <form action={addEventAction} className={form}>
+              <AskedOpenForm action={addEventAction} className={form}>
                 <input type="hidden" name="id" value={contact.id} />
                 <div className={field}>
                   <Label htmlFor="other-type">Typ</Label>
@@ -496,7 +497,7 @@ async function ContactCard({ params, searchParams }: Props) {
                 <Button type="submit" variant="outline" className="self-end">
                   Dodaj
                 </Button>
-              </form>
+              </AskedOpenForm>
             </details>
           </CardContent>
         </Card>
