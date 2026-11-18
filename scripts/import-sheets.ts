@@ -391,7 +391,7 @@ function importStoreTab(file: string) {
     if (created) bump(st, "newContacts");
     else bump(st, "mergedIntoExisting");
     c.tabs.add(tab);
-    c.tags.add(snap.sheet);
+    c.tags.add(snap.sheet.toLowerCase() === "viewers" ? "Viewers" : snap.sheet); // jeden tag dla obu zakładek Viewers
     mergeField(c, "name", str(get(r, "name")), tab);
     mergeField(c, "location", str(get(r, "location")), tab);
     mergeField(c, "occupation", str(get(r, "occupation")), tab);
