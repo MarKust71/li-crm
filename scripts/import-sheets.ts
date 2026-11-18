@@ -55,6 +55,8 @@ function parseDate(v: unknown): Date | null {
   }
   return null;
 }
+/** Zakładki arkusza „1000 osób”, które nie tworzą tagu przy imporcie. */
+const NO_TAG_TABS = new Set(["Oglądali mnie", "Ja zapraszam"]);
 const isEmpty = (v: unknown) => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 function truthy(v: unknown): boolean {
   if (typeof v === "boolean") return v;
@@ -81,6 +83,7 @@ const report = {
     "Zaprosili mnie: Post 1-2-response → ASKED_OPEN_RESPONSE; Extra-Post(+text) → NOTE; Extra → dopisane do info jako 'Extra: <tekst>'",
     "Oglądali mnie: bez tagu (informację niesie zdarzenie Viewed z datą z kolumny 'Viewed', od 2026-11-18); View-Appreciation → REACTION_RECEIVED (tekst w message; tekst bez daty → info jako 'View-Appreciation: …'); kolumna 'Katowice - reconnect' w zakładce Katowice ignorowana (duplikuje tag)",
     "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN; gdy brak wcześniejszego INVITE_SENT, dodajemy INVITE_SENT ze znacznikiem 2000-01-01 (decyzja użytkownika)",
+    "Ja zapraszam: bez tagu (od 2026-11-18; nowe osoby z aplikacji też go nie mają, filtr „(bez tagu)”)",
     "Zaprosili mnie: Invite→INVITE_RECEIVED, Appreciation→REACTION_RECEIVED (+Appr.-text jako message), Appr.-response→THANKS_SENT",
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE ze znacznikiem 2000-01-01 i dateUnknown=true (decyzja użytkownika 2026-11-18)",
     "Open-To-Talk/NO/Decision-* = TRUE bez daty: najpóźniejsza znana data z wiersza (spec 5.1); gdy brak: data importu. Takie zdarzenia mają dateUnknown=true",
@@ -246,8 +249,9 @@ function importMainTab(tab: string) {
       }
     }
     c.tabs.add(tab);
-    // zakładki Viewers i „Oglądali mnie” bez tagu: pochodzenie niesie zdarzenie Viewed (decyzje 2026-11-18; tagi usunięte też z bazy)
-    if (!isViewers && tab !== "Oglądali mnie") c.tags.add(tab);
+    // zakładki Viewers i „Oglądali mnie” bez tagu: pochodzenie niesie zdarzenie Viewed (decyzje 2026-11-18; tagi usunięte też z bazy);
+    // „Ja zapraszam” bez tagu: nowe osoby dopisywane w aplikacji też go nie mają, brak tagu filtruje się opcją „(bez tagu)”
+    if (!isViewers && !NO_TAG_TABS.has(tab)) c.tags.add(tab);
     mergeField(c, "name", name, tab);
     mergeField(c, "location", str(get(r, "location")), tab);
     mergeField(c, "occupation", str(get(r, "occupation")), tab);
