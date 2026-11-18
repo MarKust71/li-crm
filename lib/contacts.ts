@@ -9,6 +9,9 @@ export const PAGE_SIZE = 50;
 
 export type ArchivedFilter = "active" | "only" | "all";
 
+/** Wartość filtra "tag" oznaczająca kontakty bez żadnego tagu (nie jest nazwą tagu). */
+export const NO_TAG = "__none__";
+
 export const SORT_KEYS = ["name", "occupation", "stage", "tags", "activity", "added"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 export type SortDir = "asc" | "desc";
@@ -96,7 +99,8 @@ function buildWhere(f: ContactFilters): Prisma.ContactWhereInput {
     const since = parseDateInput(addDays(todayWarsaw(), -(days - 1)));
     if (since) and.push({ createdAt: { gte: since } });
   }
-  if (f.tag) and.push({ tags: { some: { tag: { name: f.tag } } } });
+  if (f.tag === NO_TAG) and.push({ tags: { none: {} } });
+  else if (f.tag) and.push({ tags: { some: { tag: { name: f.tag } } } });
   if (f.otw) and.push({ openToWork: true });
   if (f.viewed) and.push({ events: { some: { type: "VIEWED_MY_PROFILE" } } });
   if (f.thread === "with") and.push({ threadUrl: { not: null } });
