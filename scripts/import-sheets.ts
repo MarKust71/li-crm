@@ -79,7 +79,7 @@ const report = {
   assumptions: [
     "Agreed (Zaprosili mnie) → BOM_SCHEDULED z datą zgody i komentarzem w message (gdy brak BP-Date), inaczej BOM_CONFIRMED; Facebook → dopisane do info jako 'Facebook: <url>'",
     "Zaprosili mnie: Post 1-2-response → ASKED_OPEN_RESPONSE; Extra-Post(+text) → NOTE; Extra → dopisane do info jako 'Extra: <tekst>'",
-    "Oglądali mnie: View-Appreciation → REACTION_RECEIVED (tekst w message; tekst bez daty → info jako 'View-Appreciation: …'); kolumna 'Katowice - reconnect' w zakładce Katowice ignorowana (duplikuje tag)",
+    "Oglądali mnie: bez tagu (informację niesie zdarzenie Viewed z datą z kolumny 'Viewed', od 2026-11-18); View-Appreciation → REACTION_RECEIVED (tekst w message; tekst bez daty → info jako 'View-Appreciation: …'); kolumna 'Katowice - reconnect' w zakładce Katowice ignorowana (duplikuje tag)",
     "Withdraw (Katowice - reconnect) → INVITE_WITHDRAWN; gdy brak wcześniejszego INVITE_SENT, dodajemy INVITE_SENT ze znacznikiem 2000-01-01 (decyzja użytkownika)",
     "Zaprosili mnie: Invite→INVITE_RECEIVED, Appreciation→REACTION_RECEIVED (+Appr.-text jako message), Appr.-response→THANKS_SENT",
     "Viewed/onViewersList bez daty: zdarzenie VIEWED_MY_PROFILE ze znacznikiem 2000-01-01 i dateUnknown=true (decyzja użytkownika 2026-11-18)",
@@ -246,7 +246,8 @@ function importMainTab(tab: string) {
       }
     }
     c.tabs.add(tab);
-    if (!isViewers) c.tags.add(tab); // zakładka Viewers bez tagu: pochodzenie niesie zdarzenie Viewed (decyzja 2026-11-18)
+    // zakładki Viewers i „Oglądali mnie” bez tagu: pochodzenie niesie zdarzenie Viewed (decyzje 2026-11-18; tagi usunięte też z bazy)
+    if (!isViewers && tab !== "Oglądali mnie") c.tags.add(tab);
     mergeField(c, "name", name, tab);
     mergeField(c, "location", str(get(r, "location")), tab);
     mergeField(c, "occupation", str(get(r, "occupation")), tab);
