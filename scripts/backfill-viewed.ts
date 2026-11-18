@@ -1,10 +1,12 @@
 /**
  * Jednorazowo: uzupełnia zdarzenie „Wyświetlił(a) mój profil” (VIEWED_MY_PROFILE) dla kontaktów, które arkusze oznaczały jako oglądających:
- *  - 1000-osob: wiersze z TRUE w „Viewed” albo „onViewersList” oraz cała zakładka „Viewers”,
+ *  - 1000-osob: wiersze z TRUE w „Viewed” albo „onViewersList” oraz cała zakładka „Viewers”; gdy „Viewed” zawiera datę
+ *    (liczba seryjna Excela, zakładka „Oglądali mnie”), to jest to prawdziwa data wyświetlenia,
  *  - li-contact-data-store/viewers: cała zakładka (gdy jest „timestamp”: prawdziwa data zebrania, inaczej data nieznana).
  * Data nieznana = znacznik 2000-01-01 z `dateUnknown = true` (jak w arkuszach). Zdarzenie przechodzi przez `addEventTx`
  * (przeliczenie etapu, automatyzacje, ta sama ścieżka co z UI); jedno wspólne podsumowanie w dzienniku (`ingest.backfill_viewed`).
- * Kontakty, które już mają VIEWED_MY_PROFILE, są pomijane (bezpieczne do powtórzenia). Nowych kontaktów nie zakładamy.
+ * Kontakty, które już mają VIEWED_MY_PROFILE, są pomijane (bezpieczne do powtórzenia), z jednym wyjątkiem: jeśli mają tylko
+ * zdarzenie z datą nieznaną, a arkusz zna prawdziwą, to data jest uzupełniana. Nowych kontaktów nie zakładamy.
  *
  *   npx tsx --env-file=.env scripts/backfill-viewed.ts          # na sucho
  *   npx tsx --env-file=.env scripts/backfill-viewed.ts --apply  # wykonuje
@@ -16,6 +18,7 @@ import path from "node:path";
 import { addEventTx } from "../lib/contact-events";
 import { logActivity } from "../lib/activity-log";
 import { prisma } from "../lib/prisma";
+import { warsawToUtc } from "../lib/dates";
 import { normalizeProfileUrl } from "../lib/profile-url";
 import { VIEWED_UNKNOWN_DATE } from "../lib/viewed";
 
@@ -23,6 +26,12 @@ type Snap = { sheet: string; values: unknown[][] };
 const SNAP = path.join("data", "snapshots");
 const read = (dir: string, file: string): Snap => JSON.parse(readFileSync(path.join(SNAP, dir, file), "utf8"));
 const empty = (v: unknown) => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+/** Liczba seryjna Excela → północ czasu warszawskiego (jak w import-sheets.ts). */
+const serialToDate = (n: number) => {
+  if (!Number.isFinite(n) || n < 20000 || n > 80000) return null;
+  const base = new Date(Date.UTC(1899, 11, 30) + Math.floor(n) * 86400000);
+  return warsawToUtc(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate());
+};
 const truthy = (v: unknown) => v === true || (typeof v === "string" && ["TRUE", "PRAWDA", "TAK", "YES"].includes(v.trim().toUpperCase()));
 
 function records(snap: Snap, headerRow: number) {
@@ -49,7 +58,11 @@ function collect() {
     const u = col("profileurl");
     const flags = [col("viewed"), col("onviewerslist")].filter((i) => i >= 0);
     const all = snap.sheet === "Viewers";
-    for (const r of rows) if (all || flags.some((i) => truthy(r[i]))) note(normalizeProfileUrl(r[u]), null, `1000-osob/${snap.sheet}`);
+    const vi = col("viewed");
+    for (const r of rows) {
+      const at = vi >= 0 && typeof r[vi] === "number" ? serialToDate(r[vi] as number) : null;
+      if (at || all || flags.some((i) => truthy(r[i]))) note(normalizeProfileUrl(r[u]), at, `1000-osob/${snap.sheet}${at ? " (z datą)" : ""}`);
+    }
   }
   const snap = read("li-contact-data-store", "viewers.json");
   const { col, rows } = records(snap, 0);
@@ -69,21 +82,32 @@ async function main() {
 
   const urls = [...found.keys()];
   const todo: { id: string; name: string; at: Date | null }[] = [];
+  /** kontakty, które mają tylko zdarzenie z datą nieznaną, a arkusz zna prawdziwą */
+  const fix: { id: string; eventId: string; at: Date }[] = [];
   let missing = 0;
   let already = 0;
+  let differs = 0;
   for (let i = 0; i < urls.length; i += 1000) {
     const rows = await prisma.contact.findMany({
       where: { profileUrl: { in: urls.slice(i, i + 1000) } },
-      select: { id: true, name: true, profileUrl: true, _count: { select: { events: { where: { type: "VIEWED_MY_PROFILE" } } } } },
+      select: { id: true, name: true, profileUrl: true, events: { where: { type: "VIEWED_MY_PROFILE" }, select: { id: true, occurredAt: true, dateUnknown: true } } },
     });
     for (const c of rows) {
-      if (c._count.events) already++;
-      else todo.push({ id: c.id, name: c.name, at: found.get(c.profileUrl) ?? null });
+      const at = found.get(c.profileUrl) ?? null;
+      if (!c.events.length) todo.push({ id: c.id, name: c.name, at });
+      else {
+        already++;
+        const known = c.events.filter((e) => !e.dateUnknown);
+        if (at && !known.length) fix.push({ id: c.id, eventId: c.events[0].id, at });
+        // tylko informacyjnie: zdarzenie z prawdziwą datą, ale inną niż w arkuszu (nie ruszamy)
+        else if (at && !known.some((e) => e.occurredAt.getTime() === at.getTime())) differs++;
+      }
     }
     missing += urls.slice(i, i + 1000).length - rows.length;
   }
   const withDate = todo.filter((t) => t.at).length;
   console.log(`Do uzupełnienia: ${todo.length} (z prawdziwą datą: ${withDate}, nieznana data: ${todo.length - withDate}); już mają zdarzenie: ${already}; adresy bez kontaktu w bazie: ${missing}`);
+  console.log(`Do poprawy daty (zdarzenie z datą nieznaną, arkusz zna prawdziwą): ${fix.length}; zdarzenie z inną prawdziwą datą niż w arkuszu (bez zmian): ${differs}`);
   if (!apply) return console.log("Na sucho: nic nie zmieniono. Dodaj --apply, żeby wykonać.");
 
   let done = 0;
@@ -95,7 +119,12 @@ async function main() {
       done++;
     });
   }
-  await logActivity({ source: "SYNC", action: "ingest.backfill_viewed", summary: `Uzupełniono „Wyświetlił(a) mój profil” z arkuszy: ${done} kontaktów`, details: { added: done, withDate, unknownDate: todo.length - withDate } });
-  console.log(`Dodano zdarzeń: ${done}`);
+  let fixed = 0;
+  for (const f of fix) {
+    // warunek dateUnknown w updateMany: nie nadpisze daty ustawionej w międzyczasie
+    fixed += (await prisma.contactEvent.updateMany({ where: { id: f.eventId, dateUnknown: true }, data: { occurredAt: f.at, dateUnknown: false } })).count;
+  }
+  await logActivity({ source: "SYNC", action: "ingest.backfill_viewed", summary: `Uzupełniono „Wyświetlił(a) mój profil” z arkuszy: ${done} kontaktów, poprawiono datę: ${fixed}`, details: { added: done, withDate, unknownDate: todo.length - withDate, dateFixed: fixed } });
+  console.log(`Dodano zdarzeń: ${done}, poprawiono dat: ${fixed}`);
 }
 main().finally(() => prisma.$disconnect());
