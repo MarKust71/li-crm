@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
+import { ViewedBadge } from "@/components/viewed-badge";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { StepMessageField } from "@/components/step-message-field";
@@ -35,6 +36,7 @@ import {
   addEventAction,
   archiveAction,
   deleteEventAction,
+  markViewedAction,
   toggleOpenToWorkAction,
   unarchiveAction,
   updateDetailsAction,
@@ -165,6 +167,11 @@ async function ContactHeader({ params }: Pick<Props, "params">) {
   const { id } = await params;
   const contact = await getContactCached(id);
   if (!contact) return null;
+  const viewedEvents = contact.events.filter((e) => e.type === "VIEWED_MY_PROFILE");
+  const dated = viewedEvents.filter((e) => !e.dateUnknown);
+  const viewedTitle = viewedEvents.length
+    ? `Wyświetlił(a) mój profil: ${viewedEvents.length}×${dated.length ? `, ostatnio ${dateFmt.format(dated[0].occurredAt)}` : " (data nieznana)"}`
+    : "Brak informacji o wyświetleniu mojego profilu (kliknij, aby dodać)";
   return (
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -189,6 +196,7 @@ async function ContactHeader({ params }: Pick<Props, "params">) {
               OTW
             </SubmitButton>
           </form>
+          <ViewedBadge contactId={contact.id} action={markViewedAction} viewed={viewedEvents.length > 0} title={viewedTitle} />
         </div>
       </header>
   );
