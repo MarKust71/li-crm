@@ -1,7 +1,7 @@
 /**
  * Kopia zapasowa bazy: `pg_dump` uruchamiany w kontenerze `li-crm-db` (postgres:17; lokalnie nie ma `pg_dump`).
- * Zapis do `_backups/li-crm-backup-<data>-<godzina>.sql` (folder w .gitignore, plik `chmod 600`: są dane osobowe,
- * plik NIE jest szyfrowany). Starsze kopie ponad limit są usuwane (domyślnie zostaje 8 najnowszych).
+ * Zapis do `_backups/li-crm-backup-<host>-<data>-<godzina>.sql` (host z adresu, np. `localhost`, `db-prisma-io`; folder w .gitignore, plik `chmod 600`: są dane osobowe,
+ * plik NIE jest szyfrowany). Starsze kopie ponad limit są usuwane osobno dla każdego hosta (domyślnie zostaje 8 najnowszych na host).
  *
  *   npm run backup                                  # baza z DATABASE_URL (zwykle dev)
  *   BACKUP_DATABASE_URL='postgres://…' npm run backup   # np. produkcja (DIRECT_URL z Prisma Postgres)
@@ -35,6 +35,7 @@ function main() {
   if (!raw) throw new Error("Brak BACKUP_DATABASE_URL i DATABASE_URL (uruchom z --env-file=.env lub podaj adres).");
   const url = new URL(raw);
   const host = url.host;
+  const label = url.hostname.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
   const local = ["localhost", "127.0.0.1"].includes(url.hostname);
   if (local) url.host = "localhost:5432";
   url.searchParams.delete("schema"); // pg_dump nie zna parametru Prismy
@@ -45,8 +46,9 @@ function main() {
 
   mkdirSync(DIR, { recursive: true, mode: 0o700 });
   const stamp = new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "");
-  const file = join(DIR, `${PREFIX}${stamp}.sql`);
-  const tmp = `/tmp/${PREFIX}${stamp}.sql`;
+  const prefix = `${PREFIX}${label}-`;
+  const file = join(DIR, `${prefix}${stamp}.sql`);
+  const tmp = `/tmp/${prefix}${stamp}.sql`;
 
   try {
     run(["exec", "-e", "BACKUP_URL", CONTAINER, "sh", "-c", `pg_dump "$BACKUP_URL" --no-owner --no-privileges -f ${tmp}`], {
@@ -64,7 +66,7 @@ function main() {
   console.log(`OK: ${file} (${(size / 1024 / 1024).toFixed(1)} MB, ${tables} tabel)`);
 
   const old = readdirSync(DIR)
-    .filter((f) => f.startsWith(PREFIX) && f.endsWith(".sql"))
+    .filter((f) => f.startsWith(prefix) && f.endsWith(".sql"))
     .sort()
     .reverse()
     .slice(keep);
