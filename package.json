@@ -15,7 +15,8 @@
     "import": "tsx scripts/import-sheets.ts",
     "snapshot:calendar": "tsx scripts/snapshot-calendar.ts",
     "import:calendar": "tsx scripts/import-calendar.ts",
-    "hash-password": "tsx scripts/hash-password.ts"
+    "backup": "tsx --env-file=.env scripts/backup-db.ts",
+    "hash-password":"tsx scripts/hash-password.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
