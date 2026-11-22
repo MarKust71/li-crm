@@ -108,6 +108,9 @@ Schemat bazy: `prisma/schema.prisma`.
   Migracje na produkcji stosuje się ręcznie (`prisma migrate deploy`) **przed** wdrożeniem kodu, który z nich korzysta
   (build na Vercelu ich nie uruchamia).
 
+- Kopie zapasowe: dostawca (Prisma Starter) robi je co 3 h, retencja 7 dni; własny zrzut: `npm run backup` (`scripts/backup-db.ts`,
+  `pg_dump` w kontenerze `li-crm-db`, do `_backups/`, rotacja 8; produkcja przez `BACKUP_DATABASE_URL`). Spec 2.1.
+
 ## Zmienne środowiskowe
 
 - `DATABASE_URL`, `DIRECT_URL`
