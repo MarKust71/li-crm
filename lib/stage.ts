@@ -20,7 +20,6 @@ const ORDER: Stage[] = [
 const EVENT_STAGE: Partial<Record<EventType, Stage>> = {
   INVITE_SENT: "INVITED",
   INVITE_RECEIVED: "INVITED",
-  INVITE_WITHDRAWN: "INVITED", // wycofać można tylko wysłane zaproszenie
   ACCEPTED: "ACCEPTED",
   REACTION_RECEIVED: "ACCEPTED",
   THANKS_SENT: "THANKED",
@@ -41,11 +40,22 @@ const EVENT_STAGE: Partial<Record<EventType, Stage>> = {
   DECISION_NO: "DECISION_NO",
 };
 
-export function computeStage(events: { type: EventType }[]): Stage {
+type StageEvent = { type: EventType; occurredAt?: Date; createdAt?: Date };
+
+const INVITE_TYPES: EventType[] = ["INVITE_SENT", "INVITE_RECEIVED", "INVITE_WITHDRAWN"];
+
+// Wycofanie zaproszenia cofa kontakt do "Zebrany": zdarzenia zaproszenia do ostatniego wycofania włącznie
+// się nie liczą. Nowe INVITE_SENT/INVITE_RECEIVED po wycofaniu znów daje "Zaproszony". Kolejność:
+// occurredAt, potem createdAt (gdy podane), a bez dat kolejność wejściowa.
+export function computeStage(events: StageEvent[]): Stage {
+  const t = (d?: Date) => d?.getTime() ?? 0;
+  const sorted = [...events].sort((a, b) => t(a.occurredAt) - t(b.occurredAt) || t(a.createdAt) - t(b.createdAt));
+  const lastWithdrawn = sorted.map((e) => e.type).lastIndexOf("INVITE_WITHDRAWN");
   let best = 0;
-  for (const e of events) {
+  sorted.forEach((e, i) => {
+    if (i <= lastWithdrawn && INVITE_TYPES.includes(e.type)) return;
     const s = EVENT_STAGE[e.type];
     if (s) best = Math.max(best, ORDER.indexOf(s));
-  }
+  });
   return ORDER[best];
 }
