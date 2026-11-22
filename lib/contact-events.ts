@@ -9,7 +9,7 @@ import { computeStage } from "./stage";
 // Jedyne miejsce zapisu zdarzeń: każde dodanie/usunięcie przelicza Contact.stage (CLAUDE.md).
 
 async function recomputeStage(tx: Prisma.TransactionClient, contactId: string) {
-  const events = await tx.contactEvent.findMany({ where: { contactId }, select: { type: true } });
+  const events = await tx.contactEvent.findMany({ where: { contactId }, select: { type: true, occurredAt: true, createdAt: true } });
   await tx.contact.update({ where: { id: contactId }, data: { stage: computeStage(events) } });
 }
 
