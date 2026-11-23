@@ -141,3 +141,4 @@ Schemat bazy: `prisma/schema.prisma`.
   Klucz jest przypięty do domeny; zmiana domeny wymaga ponownej rejestracji kluczy (hasło działa zawsze)
 - `INGEST_API_KEY` – klucz (min. 24 znaki) endpointów `/api/ingest/*` przyjmujących dane z rozszerzenia przez n8n (`x-api-key`); na produkcji trzeba go ustawić na Vercelu
 - `SYNC_API_KEY` – klucz (min. 24 znaki) endpointów `/api/sync/*` dla n8n; ta sama wartość w poświadczeniu Header Auth w n8n (`x-api-key`)
+- `BOM_DRAFT_WEBHOOK_URL` i `BOM_DRAFT_API_KEY` – adres webhooka n8n (tajna ścieżka) i klucz `x-api-key` dla szkicu e-maila po umówieniu BOM; wartość klucza = poświadczenie n8n "Header Auth account | li-crm bom-draft". Bez adresu aplikacja nie woła n8n (lokalnie zostaw puste: wychodziłyby prawdziwe dane)
