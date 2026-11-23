@@ -49,11 +49,17 @@ async function TodayContent({ searchParams }: { searchParams: SearchParams }) {
         </Alert>
       )}
       <p className="mb-4 text-sm text-muted-foreground">
-        Dziś: {t.today.length} · zaległe: {t.overdueTotal.toLocaleString("pl-PL")} · najbliższe {UPCOMING_DAYS} dni: {t.upcoming.length}
+        Dziś: {t.today.length} · najbliższe {UPCOMING_DAYS} dni: {t.upcoming.length} · zaległe: {t.overdueTotal.toLocaleString("pl-PL")}
       </p>
 
       <Section title={`Dziś (${t.today.length})`} empty="Nic zaplanowanego na dziś.">
         {t.today.map((r) => (
+          <ReminderItem key={r.id} r={r} today={today} back={back} />
+        ))}
+      </Section>
+
+      <Section title={`Najbliższe ${UPCOMING_DAYS} dni (${t.upcoming.length})`} empty="Nic w najbliższym tygodniu.">
+        {t.upcoming.map((r) => (
           <ReminderItem key={r.id} r={r} today={today} back={back} />
         ))}
       </Section>
@@ -85,12 +91,6 @@ async function TodayContent({ searchParams }: { searchParams: SearchParams }) {
             </nav>
           </li>
         )}
-      </Section>
-
-      <Section title={`Najbliższe ${UPCOMING_DAYS} dni (${t.upcoming.length})`} empty="Nic w najbliższym tygodniu.">
-        {t.upcoming.map((r) => (
-          <ReminderItem key={r.id} r={r} today={today} back={back} />
-        ))}
       </Section>
     </>
   );
