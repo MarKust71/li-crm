@@ -104,6 +104,12 @@ Schemat bazy: `prisma/schema.prisma`.
   Lista oglądających też idzie przez poczekalnię (wpis `source = VIEWERS` + `CandidateView`, po dodaniu kontaktu stają się zdarzeniami `VIEWED_MY_PROFILE`; spec 13.1).
   "Open to work" znanym kontaktom ustawiamy wg odczytu w obie strony we wszystkich trzech importach (`syncOpenToWork` w `lib/ingest.ts`; brak pola = bez zmiany). Kontaktów nie usuwamy: błędny kontakt się archiwizuje. Adres profilu da się poprawić w „Edytuj dane” (`updateDetailsAction`: `normalizeProfileUrl`, błąd przy niepoprawnym i przy zajętym przez inny kontakt, bo `profileUrl` jest unikalny; przy zajętym komunikat ma link do kontaktu, który go ma: parametr URL `taken`). Lista kontaktów filtruje po źródle i dacie dodania i sortuje po "Dodano" (spec 13.5); filtr to parametry URL, nowe filtry dopisuj w `parseFilters`/`buildWhere`/`filtersQuery`. Kontakt założony inną drogą czyści swój wpis w poczekalni (`dropCandidates`). Spec 13.3 i 13.4.
 
+- Szkic e-maila po umówieniu BOM (`BOM_SCHEDULED`): aplikacja składa cały mail (`lib/bom-draft-core.ts`: treść jak w przypomnieniu dzień przed, ale bez „jutro”,
+  podpis ze zdjęciem z `lib/signature-photo.ts`, MIME base64url), `lib/bom-draft.ts` wybiera kandydatów (zdarzenie dodane w ostatnich 24 h, BOM otwarty, termin w przyszłości,
+  kontakt z e-mailem i niezarchiwizowany, link = „Domyślny link BOM”); endpointy `GET /api/drafts/pending` i `POST /api/drafts/result` (`SYNC_API_KEY`, bramka w `proxy.ts`).
+  n8n (workflow "li-crm: szkic e-maila po umówieniu BOM", co minutę) tylko tworzy szkic w Gmailu i potwierdza; nic nie wysyła. Idempotencja: `SentNotification` z kluczem
+  `bomdraft:<id zdarzenia>:<termin>` (zmiana terminu = nowy szkic). Stary workflow "BP reminder drafts (Gmail)" (szkic dzień przed) działa równolegle.
+
 - Znacznik "Viewed" (lista kontaktów i nagłówek karty) to pochodna zdarzeń `VIEWED_MY_PROFILE` (bez pola w schemacie). Ręczne dodanie z karty
   wymaga potwierdzenia (`markViewedAction`, praktycznie nieodwracalne). Oglądanie bez znanej daty = data 2000-01-01 (`VIEWED_UNKNOWN_DATE`,
   `lib/viewed.ts`) z `dateUnknown = true`; wsteczne uzupełnienie z arkuszy: `scripts/backfill-viewed.ts` (wykonane na prod 2026-11-18).
