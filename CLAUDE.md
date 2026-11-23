@@ -37,6 +37,14 @@ Schemat bazy: `prisma/schema.prisma`.
   przez `/api/sync/*` z nagłówkiem `x-api-key`). Logika jest w aplikacji: czyste funkcje w `lib/calendar-sync-core.ts` i
   `lib/meeting-sync-core.ts`, baza w `lib/calendar-sync.ts`. Tryb (minuty / `0` ręcznie / `-1` wyłączona) ustawia się w "Ustawienia".
   Każda zmiana przypomnienia i spotkania oznacza wiersz `syncState = PENDING`; nowe operacje na kalendarzu dopisuj tak samo.
+- Opis i lokalizacja wydarzeń w kalendarzu: opis (`buildDescription`: profil, wątek, `CRM: <AUTH_ORIGIN>/contacts/<id>`, notatka, e-mail, telefon, znacznik ID)
+  jest wysyłany przy `create` i przy każdym `update` (nadpisuje opis w całości, ręczne dopiski w Google znikają). Spotkania BOM i FU mają też
+  `location` = ustawienie „Domyślny link BOM” (`meeting.defaultLink` w `AppSetting`, `getMeetingLink` w `lib/settings.ts`; domyślnie
+  `https://mydmb.pl/c/mk/zoom`, pusty zapis = bez lokalizacji). Zmiana linku w „Ustawienia” i zmiana imienia/profilu/wątku/e-maila/telefonu kontaktu
+  oznaczają `PENDING` nadchodzące spotkania i otwarte przypomnienia kontaktu, które mają wydarzenie (`markUpcomingMeetingsPending`,
+  `markContactCalendarPending` w `lib/contact-events.ts`). Workflow n8n musi mapować `description` i `location` w gałęziach create i update.
+  Jednorazowo dla istniejących: `scripts/refresh-calendar-events.ts`.
+
 - Statystyki (`/stats`, zastępują arkusz "Summary") są liczone w zapytaniach (`lib/stats.ts`, czyste definicje w `lib/stats-core.ts`),
   nie przechowywane. Liczą osoby, nie zdarzenia; zdarzenia z `dateUnknown` pomijamy wszędzie, gdzie liczy się czas. Konwersje liczone
   na kohorcie (osoby z pierwszym zaproszeniem w okresie); granice okresu to północ czasu warszawskiego.

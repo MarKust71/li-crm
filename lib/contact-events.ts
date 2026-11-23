@@ -36,6 +36,28 @@ async function markMeetingsPending(tx: Prisma.TransactionClient, contactId: stri
 }
 
 /**
+ * Dane kontaktu (imię, adres profilu, wątek, e-mail, telefon) trafiają do opisu wydarzeń w kalendarzu, więc po ich zmianie
+ * oznacz do ponownego wysłania otwarte przypomnienia i nadchodzące spotkania kontaktu, które już mają wydarzenie. Przeszłe zostają.
+ */
+export async function markContactCalendarPending(tx: Prisma.TransactionClient, contactId: string, now = new Date()): Promise<number> {
+  const data = { syncState: "PENDING" as const, syncAttempts: 0, syncError: null };
+  const [reminders, meetings] = await Promise.all([
+    tx.reminder.updateMany({ where: { contactId, status: "OPEN", googleEventId: { not: null } }, data }),
+    tx.contactEvent.updateMany({ where: { contactId, type: { in: [...MEETING_TYPES] }, scheduledAt: { gt: now }, googleEventId: { not: null } }, data }),
+  ]);
+  return reminders.count + meetings.count;
+}
+
+/** Zmiana ustawienia „Domyślny link BOM”: nadchodzące spotkania z wydarzeniem dostają nową lokalizację. */
+export async function markUpcomingMeetingsPending(now = new Date()): Promise<number> {
+  const res = await prisma.contactEvent.updateMany({
+    where: { type: { in: [...MEETING_TYPES] }, scheduledAt: { gt: now }, googleEventId: { not: null } },
+    data: { syncState: "PENDING", syncAttempts: 0, syncError: null },
+  });
+  return res.count;
+}
+
+/**
  * Zapis zdarzenia w transakcji. Zasady: FOLLOW_UP wymaga terminu i odbytego BOM (BOM_COMPLETED); BOM_SCHEDULED wymaga terminu.
  * `fromCalendar` = zdarzenie pochodzi z kalendarza, więc nie oznaczamy spotkań do ponownego wysłania.
  */
@@ -204,6 +226,11 @@ export async function updateContactDetails(
     if (name && name !== before?.name) changed.unshift("name");
     if (changed.length) {
       await logActivity({ source: "UI", action: "contact.updated", contactId, summary: `Zmieniono dane kontaktu ${before?.name ?? ""}: ${changed.join(", ")}`, details: { fields: changed } }, tx);
+    }
+    // pola widoczne w opisie wydarzenia w kalendarzu → odśwież wydarzenia kontaktu
+    if (changed.some((k) => ["name", "profileUrl", "threadUrl", "email", "phone"].includes(k))) {
+      const n = await markContactCalendarPending(tx, contactId);
+      if (n > 0) await logActivity({ source: "UI", action: "contact.calendar_refresh", contactId, summary: `Wydarzenia kontaktu ${before?.name ?? ""} oznaczone do aktualizacji w kalendarzu: ${n}`, details: { count: n } }, tx);
     }
 
     // Zmiana lokalizacji dla wszystkich kontaktów z taką samą dotychczasową wartością (jak w arkuszach: "Wałbrzych, dolnośląskie" → "dolnośląskie").

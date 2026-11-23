@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity-log";
-import { requestManualSync, requestNotifyTest, setIntervalMinutes, setNotifySettings, setTimeSettings } from "@/lib/settings";
+import { markUpcomingMeetingsPending } from "@/lib/contact-events";
+import { requestManualSync, requestNotifyTest, setIntervalMinutes, setMeetingLink, setNotifySettings, setTimeSettings } from "@/lib/settings";
 
 export async function saveIntervalAction(formData: FormData) {
   await requireAccess();
@@ -76,6 +77,24 @@ export async function saveTimeSettingsAction(formData: FormData) {
   }
   revalidatePath("/settings");
   redirect(ok ? "/settings?timeSaved=1" : "/settings?error=time");
+}
+
+export async function saveMeetingLinkAction(formData: FormData) {
+  await requireAccess();
+  const raw = String(formData.get("meetingLink") ?? "");
+  const ok = await setMeetingLink(raw);
+  if (ok) {
+    // nowy link trafia do lokalizacji nadchodzących spotkań, które już są w kalendarzu
+    const count = await markUpcomingMeetingsPending();
+    await logActivity({
+      source: "UI",
+      action: "settings.meeting_link",
+      summary: `Zmieniono „Domyślny link BOM”${raw.trim() ? "" : " (usunięto)"}; spotkań do aktualizacji w kalendarzu: ${count}`,
+      details: { count },
+    });
+  }
+  revalidatePath("/settings");
+  redirect(ok ? "/settings?meetingLinkSaved=1" : "/settings?error=meetingLink");
 }
 
 /** "Synchronizuj kalendarz" z paska u góry strony: jak w Ustawieniach, ale bez przekierowania (zostajesz na bieżącej stronie). */

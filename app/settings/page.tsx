@@ -9,15 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { syncStatus } from "@/lib/calendar-sync";
-import { MAX_IDLE_MINUTES, MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, getNotifySettings, getTimeSettings } from "@/lib/settings";
+import { MAX_IDLE_MINUTES, MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, MAX_MEETING_LINK_LENGTH, getMeetingLink, getNotifySettings, getTimeSettings } from "@/lib/settings";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { notifyTestAction, saveIntervalAction, saveNotifyAction, saveTimeSettingsAction, syncNowAction } from "./actions";
+import { notifyTestAction, saveIntervalAction, saveMeetingLinkAction, saveNotifyAction, saveTimeSettingsAction, syncNowAction } from "./actions";
 
 export const metadata: Metadata = { title: "Ustawienia · li-crm" };
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Warsaw" });
 
-export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string }> }) {
+export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string; meetingLinkSaved?: string }> }) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -31,12 +31,13 @@ export default function SettingsPage({ searchParams }: { searchParams: Promise<{
   );
 }
 
-async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string }> }) {
+async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string; meetingLinkSaved?: string }> }) {
   await connection();
   const sp = await searchParams;
   const { settings: s, counts } = await syncStatus();
   const n = await getNotifySettings();
   const t = await getTimeSettings();
+  const meetingLink = await getMeetingLink();
   const mode = s.intervalMinutes < 0 ? "off" : s.intervalMinutes === 0 ? "manual" : "interval";
   const waiting = s.manualRequestedAt && (!s.lastRunAt || s.manualRequestedAt > s.lastRunAt);
   const errors = counts.ERROR ?? 0;
@@ -69,6 +70,17 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
               <Input id="minutes" name="minutes" type="number" min={1} max={MAX_INTERVAL_MINUTES} defaultValue={s.intervalMinutes > 0 ? s.intervalMinutes : 5} className="w-24" /> min
             </label>
           </fieldset>
+          <div><Button type="submit">Zapisz</Button></div>
+        </form>
+
+        {sp.meetingLinkSaved && <Alert><AlertDescription>Zapisano link. Nadchodzące spotkania w kalendarzu dostaną go przy najbliższej synchronizacji.</AlertDescription></Alert>}
+        {sp.error === "meetingLink" && <Alert variant="destructive"><AlertDescription>Niepoprawny link (adres http(s), maks. {MAX_MEETING_LINK_LENGTH} znaków).</AlertDescription></Alert>}
+        <form action={saveMeetingLinkAction} className="flex flex-col gap-3 rounded-lg border p-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="meetingLink">Domyślny link BOM</Label>
+            <Input id="meetingLink" name="meetingLink" type="url" maxLength={MAX_MEETING_LINK_LENGTH} defaultValue={meetingLink ?? ""} placeholder="https://…" />
+            <p className="text-xs text-muted-foreground">Trafia do lokalizacji wydarzeń BOM i FU w kalendarzu. Puste pole = bez lokalizacji.</p>
+          </div>
           <div><Button type="submit">Zapisz</Button></div>
         </form>
 

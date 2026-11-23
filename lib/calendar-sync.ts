@@ -5,7 +5,7 @@ import { extractEmail, extractPhone, extractProfileUrl, eventStartToDue, parseTi
 import { addEventTx } from "./contact-events";
 import { parseDateInput, todayWarsaw, warsawDateOf } from "./dates";
 import { normalizeProfileUrl } from "./profile-url";
-import { KEYS, getSyncSettings, setSetting } from "./settings";
+import { KEYS, getMeetingLink, getSyncSettings, setSetting } from "./settings";
 import { ID_MARKER, decideCalendarChange, evaluateGate, planOp, type CalendarEventLite, type SyncOp } from "./calendar-sync-core";
 import {
   DEFAULT_DURATION, MEETING_TYPES, OUTCOME_TYPES, decideMeetingChange, markerOutcome, meetingOutcome, nameKey, parseMeetingTitle, planMeetingOp,
@@ -28,19 +28,29 @@ export type PendingOp = SyncOp & { version: string };
 
 const retryable = { OR: [{ syncState: "PENDING" as const }, { syncState: "ERROR" as const, syncAttempts: { lt: MAX_ATTEMPTS } }] };
 
+/** Adres aplikacji (do linku do karty kontaktu w opisie wydarzenia); bez AUTH_ORIGIN link się pomija. */
+function appOrigin(): string | null {
+  try {
+    return process.env.AUTH_ORIGIN ? new URL(process.env.AUTH_ORIGIN).origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getPending(): Promise<{ ops: PendingOp[]; pullCursor: string | null; calendarId: string }> {
   const ops: PendingOp[] = [];
+  const origin = appOrigin();
 
   // 1) przypomnienia
   const rows = await prisma.reminder.findMany({
     where: retryable,
     orderBy: { updatedAt: "asc" },
     take: BATCH,
-    include: { contact: { select: { name: true, profileUrl: true, threadUrl: true, email: true, phone: true } } },
+    include: { contact: { select: { id: true, name: true, profileUrl: true, threadUrl: true, email: true, phone: true } } },
   });
   const nothingToDo: string[] = [];
   for (const r of rows) {
-    const op = planOp(r);
+    const op = planOp(r, origin);
     if (op) ops.push({ ...op, version: r.updatedAt.toISOString() });
     else nothingToDo.push(r.id); // np. anulowane przypomnienie, które nigdy nie trafiło do kalendarza
   }
@@ -51,7 +61,7 @@ export async function getPending(): Promise<{ ops: PendingOp[]; pullCursor: stri
     where: { type: { in: [...MEETING_TYPES] }, scheduledAt: { not: null }, ...retryable },
     orderBy: { updatedAt: "asc" },
     take: BATCH,
-    include: { contact: { select: { name: true, profileUrl: true, threadUrl: true, email: true, phone: true } } },
+    include: { contact: { select: { id: true, name: true, profileUrl: true, threadUrl: true, email: true, phone: true } } },
   });
   if (meetings.length) {
     const hist = await prisma.contactEvent.findMany({
@@ -59,8 +69,9 @@ export async function getPending(): Promise<{ ops: PendingOp[]; pullCursor: stri
       select: { id: true, contactId: true, type: true, occurredAt: true, createdAt: true },
     });
     const idle: string[] = [];
+    const location = await getMeetingLink();
     for (const m of meetings) {
-      const op = planMeetingOp(m, meetingOutcome(m.id, hist.filter((h) => h.contactId === m.contactId)));
+      const op = planMeetingOp(m, meetingOutcome(m.id, hist.filter((h) => h.contactId === m.contactId)), { location, appOrigin: origin });
       if (op) ops.push({ ...op, version: m.updatedAt.toISOString() });
       else idle.push(m.id);
     }
