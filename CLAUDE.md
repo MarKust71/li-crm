@@ -107,7 +107,7 @@ Schemat bazy: `prisma/schema.prisma`.
 - Szkic e-maila po umówieniu BOM (`BOM_SCHEDULED`): aplikacja składa cały mail (`lib/bom-draft-core.ts`: treść jak w przypomnieniu dzień przed, ale bez „jutro”,
   podpis ze zdjęciem z `lib/signature-photo.ts`, MIME base64url) i woła webhook n8n (`scheduleBomDraft` w `lib/bom-draft.ts`, przez `after()` po zapisie) przy dodaniu
   `BOM_SCHEDULED` (`addEventTx`, UI i kalendarz) oraz przy zmianie jego terminu z kalendarza (`applyMeetingChange`). Bez odpytywania. Adres webhooka z tajną ścieżką to
-  `BOM_DRAFT_WEBHOOK_URL` (bez niego aplikacja nie woła n8n, więc lokalnie nic nie wychodzi). Warunki: BOM otwarty, termin w przyszłości, kontakt z e-mailem i niezarchiwizowany,
+  `BOM_DRAFT_WEBHOOK_URL` i klucz `BOM_DRAFT_API_KEY` (nagłówek `x-api-key`, poświadczenie n8n "Header Auth account | li-crm bom-draft"; bez adresu aplikacja nie woła n8n, więc lokalnie nic nie wychodzi). Warunki: BOM otwarty, termin w przyszłości, kontakt z e-mailem i niezarchiwizowany,
   link = „Domyślny link BOM”. n8n (workflow "li-crm: szkic e-maila po umówieniu BOM (webhook)") tworzy szkic w Gmailu, odpowiada `{ok}` i powiadamia na Telegramie; nic nie wysyła.
   Idempotencja: `SentNotification` z kluczem `bomdraft:<id zdarzenia>:<termin>` zapisywanym po potwierdzeniu (zmiana terminu = nowy szkic); wynik w dzienniku (`bomdraft.created`/`bomdraft.failed`).
   Brak ponowień: po błędzie szkic trzeba zrobić ręcznie. Stary workflow "BP reminder drafts (Gmail)" (szkic dzień przed) działa równolegle.

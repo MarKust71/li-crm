@@ -49,7 +49,7 @@ export async function requestBomDraft(eventId: string, now = new Date()): Promis
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(process.env.BOM_DRAFT_API_KEY ? { "x-api-key": process.env.BOM_DRAFT_API_KEY } : {}) },
       body: JSON.stringify({ key, to, name: e.contact.name, when: draft.when, subject: draft.subject, raw: buildRawMime(to, draft.subject, draft.html) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
