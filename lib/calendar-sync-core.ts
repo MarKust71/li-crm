@@ -56,9 +56,15 @@ export function buildSummary(calendarTitle: string, status: ReminderStatus): str
   return `${status === "DONE" ? DONE_PREFIX : ""}${calendarTitle}`;
 }
 
-export function buildDescription(input: { reminderId: string; profileUrl: string; threadUrl?: string | null; note: string | null; email: string | null; phone: string | null }): string {
-  // opis powstaje tylko przy tworzeniu wydarzenia; wątek LinkedIn (jeśli kontakt go ma) jest zaraz po profilu
-  return [input.profileUrl, input.threadUrl ? `Wątek: ${input.threadUrl}` : null, input.note, input.email, input.phone, `${ID_MARKER}${input.reminderId}`].filter(Boolean).join("\n\n");
+/** Adres karty kontaktu w aplikacji (do opisu wydarzenia); null, gdy nie znamy adresu aplikacji. */
+export function crmContactUrl(appOrigin: string | null | undefined, contactId: string): string | null {
+  return appOrigin ? `${appOrigin.replace(/\/+$/, "")}/contacts/${contactId}` : null;
+}
+
+export function buildDescription(input: { reminderId: string; profileUrl: string; threadUrl?: string | null; crmUrl?: string | null; note: string | null; email: string | null; phone: string | null }): string {
+  // opis jest budowany przy tworzeniu wydarzenia i przy każdej aktualizacji (nadpisywany w całości);
+  // wątek LinkedIn (jeśli kontakt go ma) jest zaraz po profilu, a link do karty kontaktu w aplikacji po nim
+  return [input.profileUrl, input.threadUrl ? `Wątek: ${input.threadUrl}` : null, input.crmUrl ? `CRM: ${input.crmUrl}` : null, input.note, input.email, input.phone, `${ID_MARKER}${input.reminderId}`].filter(Boolean).join("\n\n");
 }
 
 export type EventTimes = { allDay: boolean; startDate: string; endDate: string; startDateTime: string; endDateTime: string };
@@ -89,8 +95,10 @@ export type SyncOp = {
   op: "create" | "update" | "delete";
   eventId: string | null;
   summary: string;
-  /** Tylko przy create: opis istniejących wydarzeń nie jest nadpisywany. */
+  /** Przy create i update (nadpisuje opis w całości); null przy delete. */
   description: string | null;
+  /** Lokalizacja wydarzenia (link do spotkania); null = bez lokalizacji. Tylko spotkania (BOM, FU). */
+  location?: string | null;
 } & EventTimes;
 
 export type ReminderForOp = {
@@ -102,25 +110,19 @@ export type ReminderForOp = {
   googleEventId: string | null;
   note: string | null;
   kind: ReminderKind;
-  contact: { name: string; profileUrl: string; threadUrl?: string | null; email: string | null; phone: string | null };
+  contact: { id: string; name: string; profileUrl: string; threadUrl?: string | null; email: string | null; phone: string | null };
 };
 
 /** Jaką operację wykonać w kalendarzu dla przypomnienia z oczekującą zmianą; null = nic do wysłania. */
-export function planOp(r: ReminderForOp): SyncOp | null {
+export function planOp(r: ReminderForOp, appOrigin: string | null = null): SyncOp | null {
   const title = r.calendarTitle ?? defaultCalendarTitle(r.kind, r.contact.name);
   const base = { refType: "reminder" as const, refId: r.id, reminderId: r.id, summary: buildSummary(title, r.status), ...eventTimes(r.dueAt, r.allDay) };
   if (r.status === "CANCELED") {
     return r.googleEventId ? { ...base, op: "delete", eventId: r.googleEventId, description: null } : null;
   }
-  if (!r.googleEventId) {
-    return {
-      ...base,
-      op: "create",
-      eventId: null,
-      description: buildDescription({ reminderId: r.id, profileUrl: r.contact.profileUrl, threadUrl: r.contact.threadUrl, note: r.note, email: r.contact.email, phone: r.contact.phone }),
-    };
-  }
-  return { ...base, op: "update", eventId: r.googleEventId, description: null };
+  const description = buildDescription({ reminderId: r.id, profileUrl: r.contact.profileUrl, threadUrl: r.contact.threadUrl, crmUrl: crmContactUrl(appOrigin, r.contact.id), note: r.note, email: r.contact.email, phone: r.contact.phone });
+  if (!r.googleEventId) return { ...base, op: "create", eventId: null, description };
+  return { ...base, op: "update", eventId: r.googleEventId, description };
 }
 
 // ───────────────────────── kalendarz → aplikacja ─────────────────────────

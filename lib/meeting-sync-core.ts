@@ -1,7 +1,7 @@
 import type { EventType } from "@prisma/client";
 import { eventStartToDue } from "./calendar-parse";
 import { DONE_PREFIX } from "./calendar-parse";
-import { buildDescription, type CalendarEventLite, type SyncOp } from "./calendar-sync-core";
+import { buildDescription, crmContactUrl, type CalendarEventLite, type SyncOp } from "./calendar-sync-core";
 
 // Czysta logika synchronizacji spotkań (BOM_SCHEDULED i FOLLOW_UP) z Kalendarzem Google. Warstwa bazy: lib/calendar-sync.ts.
 
@@ -67,10 +67,11 @@ export type MeetingForOp = {
   calendarTitle: string | null;
   googleEventId: string | null;
   message: string | null;
-  contact: { name: string; profileUrl: string; threadUrl?: string | null; email: string | null; phone: string | null };
+  contact: { id: string; name: string; profileUrl: string; threadUrl?: string | null; email: string | null; phone: string | null };
 };
 
-export function planMeetingOp(m: MeetingForOp, outcome: Outcome): SyncOp | null {
+/** `location`: domyślny link do spotkania (ustawienie „Domyślny link BOM”); `appOrigin`: adres aplikacji do linku w opisie. */
+export function planMeetingOp(m: MeetingForOp, outcome: Outcome, ctx: { location?: string | null; appOrigin?: string | null } = {}): SyncOp | null {
   if (!m.scheduledAt) return null;
   const canceled = m.type === "BOM_SCHEDULED" && outcome === "canceled";
   const title = m.calendarTitle ?? defaultMeetingTitle(m.type, m.contact.name);
@@ -87,10 +88,13 @@ export function planMeetingOp(m: MeetingForOp, outcome: Outcome): SyncOp | null 
     endDateTime: end.toISOString(),
   };
   if (canceled) return m.googleEventId ? { ...base, op: "delete", eventId: m.googleEventId, description: null } : null;
-  if (!m.googleEventId) {
-    return { ...base, op: "create", eventId: null, description: buildDescription({ reminderId: m.id, profileUrl: m.contact.profileUrl, threadUrl: m.contact.threadUrl, note: m.message, email: m.contact.email, phone: m.contact.phone }) };
-  }
-  return { ...base, op: "update", eventId: m.googleEventId, description: null };
+  const withDetails = {
+    ...base,
+    location: ctx.location ?? null,
+    description: buildDescription({ reminderId: m.id, profileUrl: m.contact.profileUrl, threadUrl: m.contact.threadUrl, crmUrl: crmContactUrl(ctx.appOrigin, m.contact.id), note: m.message, email: m.contact.email, phone: m.contact.phone }),
+  };
+  if (!m.googleEventId) return { ...withDetails, op: "create", eventId: null };
+  return { ...withDetails, op: "update", eventId: m.googleEventId };
 }
 
 // ───────────────────────── kalendarz → aplikacja ─────────────────────────

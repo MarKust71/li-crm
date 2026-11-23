@@ -129,3 +129,36 @@ export async function setTimeSettings(input: TimeSettings): Promise<boolean> {
   await setSetting(TIME_KEYS.suggestStart, input.suggestStart ? "1" : "0");
   return true;
 }
+
+// ───────────────────────── spotkania: domyślny link BOM ─────────────────────────
+
+export const MEETING_LINK_KEY = "meeting.defaultLink";
+export const DEFAULT_MEETING_LINK = "https://mydmb.pl/c/mk/zoom";
+export const MAX_MEETING_LINK_LENGTH = 500;
+
+/** Link do spotkania wpisywany w lokalizację wydarzeń BOM i FU; pusty zapis = bez lokalizacji, brak wpisu = domyślny. */
+export async function getMeetingLink(): Promise<string | null> {
+  const v = await get(MEETING_LINK_KEY);
+  return v === null ? DEFAULT_MEETING_LINK : v.trim() || null;
+}
+
+/** Poprawny adres http(s) albo pusty (= bez lokalizacji). Zwraca znormalizowaną wartość, "" dla pustego, null dla niepoprawnego. */
+export function normalizeMeetingLink(input: string): string | "" | null {
+  const t = input.trim();
+  if (!t) return "";
+  if (t.length > MAX_MEETING_LINK_LENGTH) return null;
+  try {
+    const u = new URL(t);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Zwraca false dla niepoprawnego adresu (nic wtedy nie zapisuje). */
+export async function setMeetingLink(input: string): Promise<boolean> {
+  const link = normalizeMeetingLink(input);
+  if (link === null) return false;
+  await setSetting(MEETING_LINK_KEY, link);
+  return true;
+}
