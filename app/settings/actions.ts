@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity-log";
+import { scheduleBomDraftsForLinkChange } from "@/lib/bom-draft";
 import { markUpcomingMeetingsPending } from "@/lib/contact-events";
 import { requestManualSync, requestNotifyTest, setIntervalMinutes, setMeetingLink, setNotifySettings, setTimeSettings } from "@/lib/settings";
 
@@ -86,6 +87,7 @@ export async function saveMeetingLinkAction(formData: FormData) {
   if (ok) {
     // nowy link trafia do lokalizacji nadchodzących spotkań, które już są w kalendarzu
     const count = await markUpcomingMeetingsPending();
+    scheduleBomDraftsForLinkChange(); // nowy szkic dla BOM, które już dostały szkic ze starym linkiem
     await logActivity({
       source: "UI",
       action: "settings.meeting_link",
