@@ -10,18 +10,40 @@ const ZOOM_FALLBACK = "https://zoom.us/j/2581716586";
 const TIMEOUT_MS = 20_000;
 
 /**
- * Prosi n8n o szkic e-maila po umówieniu BOM. Wołane po zapisie (po odpowiedzi dla użytkownika), gdy BOM_SCHEDULED zostaje dodany
- * albo zmienia termin. Bez `BOM_DRAFT_WEBHOOK_URL` nic nie robi (lokalnie nie wołamy n8n z prawdziwymi danymi).
+ * Prosi n8n o szkice e-maili po umówieniu BOM. Wołane po zapisie (po odpowiedzi dla użytkownika), gdy zmienia się cokolwiek, co mail pokazuje:
+ * dodanie `BOM_SCHEDULED`, jego termin, e-mail lub zwrot kontaktu, „Domyślny link BOM”. Każda zmiana treści daje NOWY szkic (starego nie ruszamy,
+ * zdarzenie nie jest powiązane ze szkicem). Bez `BOM_DRAFT_WEBHOOK_URL` nic nie robi (lokalnie nie wołamy n8n z prawdziwymi danymi).
  * Szkic powstaje, gdy BOM jest otwarty, termin w przyszłości, a kontakt ma e-mail i nie jest zarchiwizowany.
- * Idempotencja: `SentNotification` z kluczem id+termin, zapisywany dopiero po potwierdzeniu przez n8n.
+ * Idempotencja: `SentNotification` z kluczem z odcisku treści (`bomDraftKey`), zapisywany dopiero po potwierdzeniu przez n8n.
  */
-export function scheduleBomDraft(eventId: string): void {
+function defer(job: () => Promise<unknown>): void {
   if (!process.env.BOM_DRAFT_WEBHOOK_URL) return;
-  const run = () => requestBomDraft(eventId).catch((e) => console.error("bom-draft:", e instanceof Error ? e.message : e));
+  const run = () => job().catch((e) => console.error("bom-draft:", e instanceof Error ? e.message : e));
   try {
     after(run); // po zatwierdzeniu transakcji i wysłaniu odpowiedzi
   } catch {
     void run(); // poza żądaniem (skrypty)
+  }
+}
+
+/** Nowo dodany lub przełożony BOM. */
+export const scheduleBomDraft = (eventId: string) => defer(() => requestBomDraft(eventId));
+
+/** Zmiana e-maila lub zwrotu kontaktu: szkice dla jego nadchodzących BOM (także pierwszy, gdy e-mail właśnie doszedł). */
+export const scheduleBomDraftsForContact = (contactId: string) => defer(() => requestBomDrafts({ contactId }));
+
+/** Zmiana „Domyślnego linku BOM”: nowe szkice tylko dla nadchodzących BOM, które już dostały szkic (żeby nie zasypać skrzynki). */
+export const scheduleBomDraftsForLinkChange = () => defer(() => requestBomDrafts({ onlyIfDrafted: true }));
+
+async function requestBomDrafts(opts: { contactId?: string; onlyIfDrafted?: boolean }, now = new Date()) {
+  const events = await prisma.contactEvent.findMany({
+    where: { type: MEETING_TYPES[0], scheduledAt: { gt: now }, ...(opts.contactId ? { contactId: opts.contactId } : {}) },
+    select: { id: true },
+    orderBy: { scheduledAt: "asc" },
+  });
+  for (const e of events) {
+    if (opts.onlyIfDrafted && !(await prisma.sentNotification.findFirst({ where: { key: { startsWith: `bomdraft:${e.id}:` } }, select: { key: true } }))) continue;
+    await requestBomDraft(e.id, now).catch((err) => console.error("bom-draft:", err instanceof Error ? err.message : err));
   }
 }
 
@@ -35,7 +57,8 @@ export async function requestBomDraft(eventId: string, now = new Date()): Promis
   const to = e?.contact.email?.trim();
   if (!e || e.type !== MEETING_TYPES[0] || !e.scheduledAt || e.scheduledAt <= now || !to || e.contact.archived) return "skipped";
 
-  const key = bomDraftKey(e.id, e.scheduledAt);
+  const link = (await getMeetingLink()) ?? ZOOM_FALLBACK;
+  const key = bomDraftKey(e.id, { scheduledAt: e.scheduledAt, to, salutation: e.contact.salutation, link });
   if (await prisma.sentNotification.findUnique({ where: { key }, select: { key: true } })) return "skipped";
   const hist = await prisma.contactEvent.findMany({
     where: { contactId: e.contactId, type: { in: ["BOM_SCHEDULED", ...OUTCOME_TYPES] } },
@@ -43,7 +66,7 @@ export async function requestBomDraft(eventId: string, now = new Date()): Promis
   });
   if (meetingOutcome(e.id, hist) !== "open") return "skipped";
 
-  const draft = buildBomDraft({ scheduledAt: e.scheduledAt, salutation: e.contact.salutation, link: (await getMeetingLink()) ?? ZOOM_FALLBACK });
+  const draft = buildBomDraft({ scheduledAt: e.scheduledAt, salutation: e.contact.salutation, link });
   let ok = false;
   let error = "";
   try {

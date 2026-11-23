@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { SIGNATURE_PHOTO_B64 } from "./signature-photo";
 
 // Czysta logika szkicu e-maila po umówieniu BOM (bez bazy i sieci). Warstwa bazy: lib/bom-draft.ts.
@@ -18,8 +19,14 @@ function warsaw(d: Date) {
   return { year: Number(p.year), month: Number(p.month), day: Number(p.day), hour: p.hour, minute: p.minute, dow };
 }
 
-/** Klucz idempotencji (SentNotification): jeden szkic na umówienie i termin; zmiana terminu daje nowy szkic z nową datą. */
-export const bomDraftKey = (eventId: string | number, scheduledAt: Date) => `bomdraft:${eventId}:${scheduledAt.getTime()}`;
+/**
+ * Klucz idempotencji (SentNotification): jeden szkic na zestaw danych widocznych w mailu (termin, e-mail odbiorcy, zwrot, link).
+ * Zmiana któregokolwiek daje nowy klucz, więc powstaje nowy szkic; zapis bez zmiany treści niczego nie dubluje.
+ */
+export function bomDraftKey(eventId: string | number, d: { scheduledAt: Date; to: string; salutation: string | null; link: string }): string {
+  const fp = createHash("sha1").update(JSON.stringify([d.scheduledAt.getTime(), d.to.toLowerCase(), (d.salutation ?? "").trim(), d.link])).digest("hex").slice(0, 12);
+  return `bomdraft:${eventId}:${fp}`;
+}
 
 export type BomDraftInput = { scheduledAt: Date; salutation: string | null; link: string };
 export type BomDraft = { subject: string; html: string; when: string };

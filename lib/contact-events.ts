@@ -2,7 +2,7 @@ import type { ArchiveReason, EventType, Prisma } from "@prisma/client";
 import { contactName, logActivity } from "./activity-log";
 import { EVENT_LABEL } from "./labels";
 import { prisma } from "./prisma";
-import { scheduleBomDraft } from "./bom-draft";
+import { scheduleBomDraft, scheduleBomDraftsForContact } from "./bom-draft";
 import { applyEventAutomations, cancelFollowUps } from "./reminders";
 import { MEETING_TYPES, OUTCOME_TYPES } from "./meeting-sync-core";
 import { computeStage } from "./stage";
@@ -234,6 +234,9 @@ export async function updateContactDetails(
       const n = await markContactCalendarPending(tx, contactId);
       if (n > 0) await logActivity({ source: "UI", action: "contact.calendar_refresh", contactId, summary: `Wydarzenia kontaktu ${before?.name ?? ""} oznaczone do aktualizacji w kalendarzu: ${n}`, details: { count: n } }, tx);
     }
+
+    // e-mail i zwrot są w szkicu e-maila po umówieniu BOM → nowy szkic dla nadchodzących BOM kontaktu (po zatwierdzeniu transakcji)
+    if (changed.includes("email") || changed.includes("salutation")) scheduleBomDraftsForContact(contactId);
 
     // Zmiana lokalizacji dla wszystkich kontaktów z taką samą dotychczasową wartością (jak w arkuszach: "Wałbrzych, dolnośląskie" → "dolnośląskie").
     // Dopasowanie dokładne (bez rozróżniania wielkości liter), nie "zawiera", żeby krótki zapis nie zmienił setek innych.
