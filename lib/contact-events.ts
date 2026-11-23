@@ -2,6 +2,7 @@ import type { ArchiveReason, EventType, Prisma } from "@prisma/client";
 import { contactName, logActivity } from "./activity-log";
 import { EVENT_LABEL } from "./labels";
 import { prisma } from "./prisma";
+import { scheduleBomDraft } from "./bom-draft";
 import { applyEventAutomations, cancelFollowUps } from "./reminders";
 import { MEETING_TYPES, OUTCOME_TYPES } from "./meeting-sync-core";
 import { computeStage } from "./stage";
@@ -72,7 +73,7 @@ export async function addEventTx(
     const bom = await tx.contactEvent.count({ where: { contactId, type: "BOM_COMPLETED" } });
     if (bom === 0) return { ok: false, error: "no-bom" };
   }
-  await tx.contactEvent.create({
+  const created = await tx.contactEvent.create({
     data: {
       contactId,
       type: data.type,
@@ -103,6 +104,7 @@ export async function addEventTx(
     tx,
   );
   if (!opts.fromCalendar && affectsMeetings(data.type)) await markMeetingsPending(tx, contactId);
+  if (data.type === "BOM_SCHEDULED") scheduleBomDraft(created.id); // po zatwierdzeniu transakcji
   return { ok: true };
 }
 

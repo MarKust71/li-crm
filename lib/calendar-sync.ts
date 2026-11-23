@@ -2,6 +2,7 @@ import { logActivity } from "./activity-log";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { extractEmail, extractPhone, extractProfileUrl, eventStartToDue, parseTitle, slugToName } from "./calendar-parse";
+import { scheduleBomDraft } from "./bom-draft";
 import { addEventTx } from "./contact-events";
 import { parseDateInput, todayWarsaw, warsawDateOf } from "./dates";
 import { normalizeProfileUrl } from "./profile-url";
@@ -311,6 +312,7 @@ async function applyMeetingChange(
   });
   sum.updated++;
   if (d.addOutcome) sum.outcomes++;
+  if (m.type === "BOM_SCHEDULED" && d.patch.scheduledAt) scheduleBomDraft(m.id); // przełożony termin = nowy szkic
 }
 
 async function discoverMeeting(

@@ -1,14 +1,11 @@
 import { SIGNATURE_PHOTO_B64 } from "./signature-photo";
 
 // Czysta logika szkicu e-maila po umówieniu BOM (bez bazy i sieci). Warstwa bazy: lib/bom-draft.ts.
-// Aplikacja składa cały mail (treść, podpis ze zdjęciem, MIME base64url); szkic w Gmailu tworzy n8n (workflow "li-crm: szkic e-maila po umówieniu BOM").
+// Aplikacja składa cały mail (treść, podpis ze zdjęciem, MIME base64url); szkic w Gmailu tworzy n8n (workflow "li-crm: szkic e-maila po umówieniu BOM", wywoływany webhookiem z aplikacji).
 
 const WEEKDAY = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
 const WEEKDAY_ACC = ["w niedzielę", "w poniedziałek", "we wtorek", "w środę", "w czwartek", "w piątek", "w sobotę"];
 const MONTH_GEN = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
-
-/** Okno, w którym świeżo umówiony BOM dostaje szkic (starsze umówienia pomijamy, żeby wdrożenie nie zasypało skrzynki). */
-export const BOM_DRAFT_WINDOW_HOURS = 24;
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
