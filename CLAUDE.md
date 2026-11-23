@@ -119,6 +119,11 @@ Schemat bazy: `prisma/schema.prisma`.
 - Kopie zapasowe: dostawca (Prisma Starter) robi je co 3 h, retencja 7 dni; własny zrzut: `npm run backup` (`scripts/backup-db.ts`,
   `pg_dump` w kontenerze `li-crm-db`, do `_backups/`, rotacja 8; produkcja przez `BACKUP_DATABASE_URL`). Spec 2.1.
 
+- Kopia produkcji do dev: `npm run db:pull-prod` (`scripts/pull-prod.ts`, `-- --yes` bez pytania). Robi kopię lokalnej bazy, zrzut produkcji
+  (tylko odczyt, adres z `BACKUP_DATABASE_URL` lub `DIRECT_URL` z `.env.production.local`) i NADPISUJE lokalną bazę (`DROP SCHEMA public`);
+  odmawia, gdy `DATABASE_URL` nie jest localhost. Lokalnie są wtedy prawdziwe dane osobowe: nie podpinaj kluczy `SYNC_API_KEY`/`INGEST_API_KEY`
+  produkcji ani n8n do lokalnej aplikacji (kalendarz, Telegram). Spec 2.1.
+
 ## Zmienne środowiskowe
 
 - `DATABASE_URL`, `DIRECT_URL`

@@ -16,6 +16,7 @@
     "snapshot:calendar": "tsx scripts/snapshot-calendar.ts",
     "import:calendar": "tsx scripts/import-calendar.ts",
     "backup": "tsx --env-file=.env scripts/backup-db.ts",
+    "db:pull-prod": "tsx --env-file=.env scripts/pull-prod.ts",
     "hash-password": "tsx scripts/hash-password.ts"
   },
   "dependencies": {
