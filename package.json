@@ -18,7 +18,8 @@
     "backup": "tsx --env-file=.env scripts/backup-db.ts",
     "db:pull-prod": "tsx --env-file=.env scripts/pull-prod.ts",
     "hash-password": "tsx scripts/hash-password.ts",
-    "linkedin:probe": "tsx --env-file=.env.local scripts/linkedin-probe.ts"
+    "linkedin:probe": "tsx --env-file=.env.local scripts/linkedin-probe.ts",
+    "linkedin:compare": "tsx --env-file=.env scripts/linkedin-compare-export.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
