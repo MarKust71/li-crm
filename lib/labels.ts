@@ -80,6 +80,7 @@ export const SOURCE_LABEL: Record<Source, string> = {
   MORE_PROFILES: "More profiles",
   MANUAL: "Ręcznie",
   IMPORT: "Import z arkuszy",
+  LINKEDIN_EXPORT: "Eksport z LinkedIn",
 };
 
 // Przyciski następnego kroku zależne od etapu (spec 7.2). Pierwszy = najczęstszy.
