@@ -83,7 +83,7 @@ export function resolvePeriod(input: { period?: string; from?: string; to?: stri
 
 // ───────────────────────── dashboard ─────────────────────────
 
-export type DashWindow = "today" | "week" | "month" | "year" | "fiscal" | "all";
+export type DashWindow = "today" | "yesterday" | "week" | "month" | "year" | "fiscal" | "all";
 /** rolling = wstecz od dziś (7/30/365 dni); calendar = od poniedziałku / 1. dnia miesiąca / 1 stycznia do dziś. */
 export type DashMode = "rolling" | "calendar";
 
@@ -91,8 +91,8 @@ export type DashMode = "rolling" | "calendar";
 export const FISCAL_START_MONTH = 9;
 
 export const DASH_LABEL: Record<DashMode, Partial<Record<DashWindow, string>>> = {
-  rolling: { today: "Dziś", week: "Ostatnie 7 dni", month: "Ostatnie 30 dni", year: "Ostatnie 365 dni", fiscal: "Od początku roku biznesowego", all: "Cały okres" },
-  calendar: { today: "Dziś", week: "Ten tydzień", month: "Ten miesiąc", year: "Ten rok", fiscal: "Ten rok biznesowy", all: "Cały okres" },
+  rolling: { today: "Dziś", yesterday: "Wczoraj", week: "Ostatnie 7 dni", month: "Ostatnie 30 dni", year: "Ostatnie 365 dni", fiscal: "Od początku roku biznesowego", all: "Cały okres" },
+  calendar: { today: "Dziś", yesterday: "Wczoraj", week: "Ten tydzień", month: "Ten miesiąc", year: "Ten rok", fiscal: "Ten rok biznesowy", all: "Cały okres" },
 };
 
 export type DashPeriod = { key: DashWindow; period: Period };
@@ -107,12 +107,16 @@ export function dashboardPeriods(today: string, mode: DashMode): DashPeriod[] {
   // "all": od początku danych (from = null), niezależnie od trybu
   const from: [DashWindow, string | null][] =
     mode === "rolling"
-      ? [["today", today], ["week", addDays(today, -6)], ["month", addDays(today, -29)], ["year", addDays(today, -364)], ["fiscal", fiscalFrom], ["all", null]]
+      ? [["today", today], ["yesterday", addDays(today, -1)], ["week", addDays(today, -6)], ["month", addDays(today, -29)], ["year", addDays(today, -364)], ["fiscal", fiscalFrom], ["all", null]]
       : [
-          ["today", today], ["week", bucketStart(today, "week")], ["month", `${today.slice(0, 7)}-01`], ["year", `${y}-01-01`],
+          ["today", today], ["yesterday", addDays(today, -1)], ["week", bucketStart(today, "week")], ["month", `${today.slice(0, 7)}-01`], ["year", `${y}-01-01`],
           ["fiscal", fiscalFrom], ["all", null],
         ];
-  return from.map(([key, f]) => ({ key, period: { preset: "custom" as const, from: f, to, label: DASH_LABEL[mode][key]! } }));
+  return from.map(([key, f]) => ({
+    key,
+    // "Wczoraj" kończy się przed dzisiejszym dniem, reszta okresów na dziś włącznie
+    period: { preset: "custom" as const, from: f, to: key === "yesterday" ? today : to, label: DASH_LABEL[mode][key]! },
+  }));
 }
 
 /** Domyślna rozdzielczość szeregu: dni do ~5 tygodni, tygodnie do ~roku, dalej miesiące. */

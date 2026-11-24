@@ -5,6 +5,7 @@ import { SiteNav } from "@/components/site-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboard, type DashCell } from "@/lib/stats";
+import { addDays } from "@/lib/dates";
 import { fmtPct, pct, type DashMode } from "@/lib/stats-core";
 
 export const metadata: Metadata = { title: "Dashboard · li-crm" };
@@ -83,7 +84,10 @@ async function DashboardContent({ searchParams }: { searchParams: SP }) {
               <h2 className="mb-1 text-sm font-medium text-muted-foreground">
                 {win.period.label}
                 <span className="ml-2 font-normal tabular-nums">
-                  ({win.period.from === null ? `od początku danych – ${d.today}` : win.period.from === d.today ? d.today : `${win.period.from} – ${d.today}`})
+                  ({(() => {
+                    const end = addDays(win.period.to, -1);
+                    return win.period.from === null ? `od początku danych – ${end}` : win.period.from === end ? end : `${win.period.from} – ${end}`;
+                  })()})
                 </span>
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
