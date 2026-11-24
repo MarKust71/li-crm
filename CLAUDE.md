@@ -123,6 +123,9 @@ Schemat bazy: `prisma/schema.prisma`.
   `lib/viewed.ts`) z `dateUnknown = true`; wsteczne uzupełnienie z arkuszy: `scripts/backfill-viewed.ts` (wykonane na prod 2026-11-18).
   Lista kontaktów ma filtr `viewed=1` (pole wyboru „Viewed”, `parseFilters`/`buildWhere`/`filtersQuery`; kryterium: zdarzenie `VIEWED_MY_PROFILE`; spec 13.5).
 
+- Badanie LinkedIn Member Data Portability API (3rd Party): `scripts/linkedin-probe.ts` (`npm run linkedin:probe`, spec 13.6), tylko sonda, nic nie trafia do bazy.
+  Wyniki z prawdziwymi danymi osobowymi są w `_linkedin-probe/` (w .gitignore, nie commitować); `LINKEDIN_CLIENT_ID`/`LINKEDIN_CLIENT_SECRET` tylko w `.env.local`.
+
 ## Środowiska
 
 - Dev: Postgres w lokalnym Dockerze (`docker compose up -d db`).

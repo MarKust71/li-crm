@@ -31,3 +31,4 @@ npm-debug.log*
 
 # kopie bazy (dane osobowe, nigdy do repozytorium)
 /_backups/
+/_linkedin-probe/
