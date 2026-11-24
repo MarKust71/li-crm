@@ -28,6 +28,7 @@ enum Source {
   MORE_PROFILES // content7.js – "More profiles"
   MANUAL
   IMPORT        // jednorazowa migracja z arkuszy
+  LINKEDIN_EXPORT // oficjalny eksport danych LinkedIn (CSV), scripts/import-linkedin-export.ts
 }
 
 // Bieżący etap lejka. Wyliczany z ostatniego istotnego zdarzenia (ContactEvent),

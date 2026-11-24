@@ -11,10 +11,12 @@
  *  1. Kontakt istnieje, jest w Connections, a nie ma `ACCEPTED` → dodaje `ACCEPTED` z „Connected On” (północ czasu warszawskiego).
  *  2. Kontakt istnieje, w Invitations.csv jest jako OUTGOING/INCOMING, a nie ma `INVITE_SENT`/`INVITE_RECEIVED` → dodaje zaproszenie z „Sent At”
  *     (data wg czasu warszawskiego, północ; treść zaproszenia).
- *  3. Kontakt nie istnieje → zakłada go (`source = IMPORT`, `direction` wg Invitations.csv, domyślnie OUTBOUND) ze zdarzeniami z pkt 1 i 2.
+ *  3. Kontakt nie istnieje → zakłada go (`source = LINKEDIN_EXPORT`, `direction` wg Invitations.csv, domyślnie OUTBOUND) ze zdarzeniami z pkt 1 i 2.
  *  4. Osoba z `ACCEPTED`, ale bez zdarzenia zaproszenia → zdarzenie zaproszenia (`INVITE_SENT`, dla INBOUND `INVITE_RECEIVED`) z datą `ACCEPTED`
  *     i `dateUnknown = true` (nie psuje średnich czasu, spec 11).
  *  5. Puste pola istniejących kontaktów (e-mail, stanowisko) uzupełnia z Connections.csv. Niczego nie nadpisuje.
+ *  6. `--relabel` (osobny tryb): kontaktom założonym tym importem 2026-11-24 (`source = IMPORT`, adres w eksporcie, `createdAt` od 2026-11-24)
+ *     ustawia `source = LINKEDIN_EXPORT` (jednorazowo, po migracji dodającej wartość enuma; na sucho domyślnie, `--apply` wykonuje).
  * Nie zmienia istniejących dat ani treści, nie archiwizuje, nie usuwa. Zdarzenia przez `addEventTx` (etap, automatyzacje), jeden wspólny wpis
  * w dzienniku (`import.linkedin_export`). Uwaga: nowe `INVITE_SENT` zamyka otwarte przypomnienia RECONNECT kontaktu (automatyzacja aplikacji).
  */
@@ -91,7 +93,20 @@ function collect(): { people: Map<string, Person>; own: string | null; skipped: 
   return { people, own, skipped };
 }
 
+async function relabel() {
+  console.log(`Baza: ${new URL(process.env.DATABASE_URL!).host} · tryb: ${apply ? "WYKONANIE" : "na sucho"} · przypisanie źródła LINKEDIN_EXPORT`);
+  const { people } = collect();
+  const where = { source: "IMPORT" as const, profileUrl: { in: [...people.keys()] }, createdAt: { gte: new Date("2026-11-24T00:00:00+01:00") } };
+  const n = await prisma.contact.count({ where });
+  console.log(`Kontaktów do przepisania (IMPORT → LINKEDIN_EXPORT): ${n}`);
+  if (!apply) return console.log("Na sucho: nic nie zmieniono. Dodaj --apply, żeby wykonać.");
+  const r = await prisma.contact.updateMany({ where, data: { source: "LINKEDIN_EXPORT" } });
+  console.log(`Zmieniono: ${r.count}`);
+  await logActivity({ source: "SYNC", action: "import.linkedin_export_relabel", summary: `Źródło kontaktów z eksportu LinkedIn: IMPORT → LINKEDIN_EXPORT (${r.count})`, details: { count: r.count } });
+}
+
 async function main() {
+  if (process.argv.includes("--relabel")) return relabel();
   console.log(`Baza: ${new URL(process.env.DATABASE_URL!).host} · tryb: ${apply ? "WYKONANIE" : "na sucho"}`);
   const { people, own, skipped } = collect();
   console.log(`Eksport: ${people.size} osób (pominięte wiersze bez adresu/nazwy/daty: ${skipped}${own ? "" : ", UWAGA: nie ustalono własnego adresu"})`);
@@ -146,7 +161,7 @@ async function main() {
         let id = x.contactId;
         if (!id) {
           const c = await tx.contact.create({
-            data: { profileUrl: x.person.url, name: x.person.name, occupation: x.person.occupation, email: x.person.email, direction: x.direction, source: "IMPORT" },
+            data: { profileUrl: x.person.url, name: x.person.name, occupation: x.person.occupation, email: x.person.email, direction: x.direction, source: "LINKEDIN_EXPORT" },
             select: { id: true },
           });
           id = c.id;
