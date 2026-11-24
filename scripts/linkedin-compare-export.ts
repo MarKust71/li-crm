@@ -8,9 +8,9 @@
  * Dane osobowe nie trafiają na terminal ani do plików. Spec 13.6.
  */
 import { PrismaClient } from "@prisma/client";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { normalizeProfileUrl } from "../lib/profile-url";
+import { dayUtc, dayWarsaw, loadCsv, parseConnectedOn, parseSentAt } from "./linkedin-export-core";
 
 const dir = process.argv[2] ?? join(process.cwd(), "_linkedin-probe/export/unpacked");
 const dbUrl = process.env.DATABASE_URL ?? "";
@@ -19,69 +19,8 @@ if (!/@(localhost|127\.0\.0\.1)[:/]/.test(dbUrl)) {
   process.exit(1);
 }
 
-// ---------- CSV ----------
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) {
-      if (c === '"') {
-        if (text[i + 1] === '"') {
-          cell += '"';
-          i++;
-        } else q = false;
-      } else cell += c;
-    } else if (c === '"') q = true;
-    else if (c === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (c === "\n" || c === "\r") {
-      if (c === "\r" && text[i + 1] === "\n") i++;
-      row.push(cell);
-      cell = "";
-      if (row.some((x) => x !== "")) rows.push(row);
-      row = [];
-    } else cell += c;
-  }
-  if (cell !== "" || row.length) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows;
-}
+const load = (name: string) => loadCsv(dir, name);
 
-function load(name: string): Record<string, string>[] {
-  const rows = parseCsv(readFileSync(join(dir, name), "utf8").replace(/^﻿/, ""));
-  const freq = new Map<number, number>();
-  for (const r of rows.slice(1)) freq.set(r.length, (freq.get(r.length) ?? 0) + 1);
-  const n = [...freq].sort((a, b) => b[1] - a[1])[0]?.[0] ?? rows[0].length;
-  const hi = rows.findIndex((r) => r.length === n);
-  const head = rows[hi];
-  return rows.slice(hi + 1).filter((r) => r.length === n).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])));
-}
-
-// ---------- daty ----------
-const warsaw = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" });
-const dayWarsaw = (d: Date) => warsaw.format(d);
-const dayUtc = (d: Date) => d.toISOString().slice(0, 10);
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function parseConnectedOn(s: string): string | null {
-  const m = /^(\d{1,2}) (\w{3}) (\d{4})$/.exec(s.trim());
-  if (!m) return null;
-  const mi = MONTHS.indexOf(m[2]);
-  return mi < 0 ? null : `${m[3]}-${String(mi + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-}
-function parseSentAt(s: string): Date | null {
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(s.trim());
-  if (!m) return null;
-  let h = Number(m[4]) % 12;
-  if (m[6].toUpperCase() === "PM") h += 12;
-  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-  return new Date(Date.UTC(y, Number(m[1]) - 1, Number(m[2]), h, Number(m[5])));
-}
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);
 function bucket(diffs: number[]) {
   const c = { zero: 0, one: 0, other: 0 };
