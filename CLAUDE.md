@@ -125,6 +125,7 @@ Schemat bazy: `prisma/schema.prisma`.
 
 - Badanie LinkedIn Member Data Portability API (3rd Party): `scripts/linkedin-probe.ts` (`npm run linkedin:probe`, spec 13.6), tylko sonda, nic nie trafia do bazy.
   Wyniki z prawdziwymi danymi osobowymi są w `_linkedin-probe/` (w .gitignore, nie commitować); `LINKEDIN_CLIENT_ID`/`LINKEDIN_CLIENT_SECRET` tylko w `.env.local`.
+  `npm run linkedin:compare` (`scripts/linkedin-compare-export.ts`, spec 13.6a) porównuje eksport CSV z LinkedIn z lokalną bazą: tylko odczyt, odmawia poza localhostem, wypisuje same liczby.
 
 ## Środowiska
 
