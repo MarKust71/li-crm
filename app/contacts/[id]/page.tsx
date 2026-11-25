@@ -20,6 +20,7 @@ import { AddReminderForm, ReminderItem } from "@/components/reminders";
 import { contactNeighbors, getContact, listContextFrom, type ContactFilters } from "@/lib/contacts";
 import { todayWarsaw } from "@/lib/dates";
 import { countSameLocation } from "@/lib/contact-events";
+import { acceptDelaySuffix } from "@/lib/accept-delay";
 import { isSuggestedStep } from "@/lib/invite-message";
 import { upcomingMeetings } from "@/lib/meeting-sync-core";
 import { listContactReminders } from "@/lib/reminders";
@@ -558,6 +559,10 @@ async function ContactCard({ params, searchParams }: Props) {
                       {e.dateUnknown && <em className="not-italic text-warn"> · data nieznana</em>}
                     </span>
                     <strong>{EVENT_LABEL[e.type]}</strong>
+                    {(() => {
+                      const s = acceptDelaySuffix(e, contact.events);
+                      return s ? <span className="text-sm text-muted-foreground">{s}</span> : null;
+                    })()}
                   </div>
                   {e.scheduledAt && (
                     <p className="text-sm text-muted-foreground">Termin: {dateTimeFmt.format(e.scheduledAt)}</p>
