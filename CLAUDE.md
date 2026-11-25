@@ -86,6 +86,11 @@ Schemat bazy: `prisma/schema.prisma`.
   przez `logActivity` (`lib/activity-log.ts`), wołany z warstwy domenowej, a nie z UI (żeby zmiany z synchronizacji też się logowały).
   Nowe mutacje dopisuj tak samo. Nigdy nie loguj haseł, kluczy, treści wiadomości ani e-maili/telefonów. Retencja 180 dni (automatycznie, raz na dobę).
 
+- Dopisek „(po X dniach)” przy „Zaproszenie zaakceptowane” (`ACCEPTED`): dni kalendarzowe (czas warszawski) od ostatniego `INVITE_SENT` sprzed przyjęcia
+  (`acceptDelaySuffix` w `lib/accept-delay.ts`, czysta funkcja; 1 → „po 1 dniu”). Brak dopisku, gdy nie ma zaproszenia, gdy zaproszenie lub przyjęcie ma
+  `dateUnknown` (znacznik 2000-01-01) albo różnica jest ujemna. Pokazywany w historii na karcie kontaktu (liczony przy renderze, nie zapisywany) i w wpisach
+  dziennika `event.added` / `event.deleted` (`lib/contact-events.ts`; stare wpisy bez zmian). Nowe miejsca pokazujące `ACCEPTED` używają tej funkcji.
+
 - Podpowiedzi czasu pracy (pasek `TimeBar` w `app/layout.tsx`) opierają się na dzienniku aktywności: nowe akcje użytkownika logujesz
   `logActivity` ze źródłem `UI`, a akcje niebędące pracą w CRM dostają prefiks `time.`, `settings.` lub `log.`. Pasek niczego nie zatrzymuje sam.
 

@@ -1,5 +1,6 @@
 import type { ArchiveReason, EventType, Prisma } from "@prisma/client";
 import { contactName, logActivity } from "./activity-log";
+import { acceptDelaySuffix } from "./accept-delay";
 import { EVENT_LABEL } from "./labels";
 import { prisma } from "./prisma";
 import { scheduleBomDraft, scheduleBomDraftsForContact } from "./bom-draft";
@@ -93,12 +94,18 @@ export async function addEventTx(
     const c = await tx.contact.findUnique({ where: { id: contactId }, select: { archived: true } });
     if (c && !c.archived) await setArchivedTx(tx, contactId, autoReason, { cancelReminders: true, source: opts.fromCalendar ? "SYNC" : "UI", trigger: data.type });
   }
+  let delay = "";
+  if (!opts.skipLog && data.type === "ACCEPTED") {
+    const invites = await tx.contactEvent.findMany({ where: { contactId, type: "INVITE_SENT" }, select: { type: true, occurredAt: true, dateUnknown: true } });
+    const s = acceptDelaySuffix({ type: data.type, occurredAt: data.occurredAt, dateUnknown: data.dateUnknown ?? false }, invites);
+    if (s) delay = ` ${s}`;
+  }
   if (!opts.skipLog) await logActivity(
     {
       source: opts.fromCalendar ? "SYNC" : "UI",
       action: "event.added",
       contactId,
-      summary: `${EVENT_LABEL[data.type]}: ${await contactName(contactId, tx)}${opts.fromCalendar ? " (z kalendarza)" : ""}`,
+      summary: `${EVENT_LABEL[data.type]}${delay}: ${await contactName(contactId, tx)}${opts.fromCalendar ? " (z kalendarza)" : ""}`,
       details: { type: data.type, occurredAt: data.occurredAt.toISOString(), ...(data.dateUnknown ? { dateUnknown: true } : {}), ...(data.scheduledAt ? { scheduledAt: data.scheduledAt.toISOString() } : {}) },
     },
     tx,
@@ -128,7 +135,7 @@ export type DeleteResult = { ok: true; contactId: string } | { ok: false; error:
 /** Usunięcie zdarzenia. Powiązane wydarzenie w kalendarzu zostaje usunięte przez synchronizację ("nagrobek"). */
 export async function deleteContactEvent(eventId: string): Promise<DeleteResult> {
   return prisma.$transaction(async (tx) => {
-    const event = await tx.contactEvent.findUnique({ where: { id: eventId }, select: { contactId: true, type: true, occurredAt: true, googleEventId: true, googleCalendarId: true } });
+    const event = await tx.contactEvent.findUnique({ where: { id: eventId }, select: { contactId: true, type: true, occurredAt: true, dateUnknown: true, googleEventId: true, googleCalendarId: true } });
     if (!event) return { ok: false, error: "not-found" } as const;
     if (event.type === "BOM_COMPLETED") {
       // FU nie może istnieć bez odbytego BOM
@@ -149,8 +156,14 @@ export async function deleteContactEvent(eventId: string): Promise<DeleteResult>
     await recomputeStage(tx, event.contactId);
     // usunięto jedyne pytanie o rozmowę → jego automatyczne przypomnienia tracą sens
     if (event.type === "ASKED_OPEN" && (await tx.contactEvent.count({ where: { contactId: event.contactId, type: "ASKED_OPEN" } })) === 0) await cancelFollowUps(tx, event.contactId);
+    let delay = "";
+    if (event.type === "ACCEPTED") {
+      const invites = await tx.contactEvent.findMany({ where: { contactId: event.contactId, type: "INVITE_SENT" }, select: { type: true, occurredAt: true, dateUnknown: true } });
+      const s = acceptDelaySuffix(event, invites);
+      if (s) delay = ` ${s}`;
+    }
     await logActivity(
-      { source: "UI", action: "event.deleted", contactId: event.contactId, summary: `Usunięto zdarzenie „${EVENT_LABEL[event.type]}": ${await contactName(event.contactId, tx)}`, details: { type: event.type, occurredAt: event.occurredAt.toISOString() } },
+      { source: "UI", action: "event.deleted", contactId: event.contactId, summary: `Usunięto zdarzenie „${EVENT_LABEL[event.type]}"${delay}: ${await contactName(event.contactId, tx)}`, details: { type: event.type, occurredAt: event.occurredAt.toISOString() } },
       tx,
     );
     if (affectsMeetings(event.type)) await markMeetingsPending(tx, event.contactId);
