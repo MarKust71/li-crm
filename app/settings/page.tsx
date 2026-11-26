@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { SiteNav } from "@/components/site-nav";
+import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,7 +70,7 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
               <Input id="minutes" name="minutes" type="number" min={1} max={MAX_INTERVAL_MINUTES} defaultValue={s.intervalMinutes > 0 ? s.intervalMinutes : 5} className="w-24" /> min
             </label>
           </fieldset>
-          <div><Button type="submit">Zapisz</Button></div>
+          <div><SubmitButton pendingLabel="Zapisuję…">Zapisz</SubmitButton></div>
         </form>
 
         {sp.meetingLinkSaved && <Alert><AlertDescription>Zapisano link. Nadchodzące spotkania w kalendarzu dostaną go przy najbliższej synchronizacji.</AlertDescription></Alert>}
@@ -81,12 +81,12 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
             <Input id="meetingLink" name="meetingLink" type="url" maxLength={MAX_MEETING_LINK_LENGTH} defaultValue={meetingLink ?? ""} placeholder="https://…" />
             <p className="text-xs text-muted-foreground">Trafia do lokalizacji wydarzeń BOM i FU w kalendarzu. Puste pole = bez lokalizacji.</p>
           </div>
-          <div><Button type="submit">Zapisz</Button></div>
+          <div><SubmitButton pendingLabel="Zapisuję…">Zapisz</SubmitButton></div>
         </form>
 
         <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
           <form action={syncNowAction}>
-            <Button type="submit" variant="secondary" disabled={mode === "off"}>Synchronizuj teraz</Button>
+            <SubmitButton pendingLabel="Zgłaszam…" variant="secondary" disabled={mode === "off"}>Synchronizuj teraz</SubmitButton>
           </form>
           {waiting && <Badge variant="secondary">oczekuje na uruchomienie</Badge>}
           {mode === "off" && <span className="text-sm text-muted-foreground">Synchronizacja jest wyłączona.</span>}
@@ -130,10 +130,10 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="errorAlerts" defaultChecked={n.errorAlerts} /> Powiadamiaj o błędach synchronizacji z kalendarzem
             </label>
-            <div><Button type="submit">Zapisz</Button></div>
+            <div><SubmitButton pendingLabel="Zapisuję…">Zapisz</SubmitButton></div>
           </form>
           <form action={notifyTestAction}>
-            <Button type="submit" variant="secondary">Wyślij wiadomość testową</Button>
+            <SubmitButton pendingLabel="Zgłaszam…" variant="secondary">Wyślij wiadomość testową</SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -159,7 +159,7 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="suggestStart" defaultChecked={t.suggestStart} /> Podpowiadaj włączenie rejestrowania, gdy pracuję w aplikacji bez włączonego czasu
           </label>
-          <div><Button type="submit">Zapisz</Button></div>
+          <div><SubmitButton pendingLabel="Zapisuję…">Zapisz</SubmitButton></div>
         </form>
       </CardContent>
     </Card>

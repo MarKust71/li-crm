@@ -3,6 +3,7 @@
 import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
+import { Spinner } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,8 +55,9 @@ export function PasskeyLoginButton({ next }: { next: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <Button type="button" variant="outline" disabled={busy} onClick={login}>
-        Zaloguj przez Touch ID
+      <Button type="button" variant="outline" disabled={busy} aria-busy={busy} onClick={login}>
+        {busy && <Spinner />}
+        {busy ? "Loguję…" : "Zaloguj przez Touch ID"}
       </Button>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -103,8 +105,9 @@ export function PasskeyRegisterButton() {
           <Label htmlFor="passkey-name">Nazwa (opcjonalnie)</Label>
           <Input id="passkey-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="np. MacBook Pro" className="w-56" />
         </div>
-        <Button type="button" disabled={busy} onClick={register}>
-          Dodaj klucz dostępu (Touch ID)
+        <Button type="button" disabled={busy} aria-busy={busy} onClick={register}>
+          {busy && <Spinner />}
+          {busy ? "Dodaję…" : "Dodaj klucz dostępu (Touch ID)"}
         </Button>
       </div>
       {message && (

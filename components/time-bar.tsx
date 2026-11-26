@@ -42,12 +42,12 @@ export async function TimeBar() {
             <form action={pauseFromBarAction}>
               <input type="hidden" name="id" value={running.id} />
               <input type="hidden" name="at" value={bar.lastActivityAt.toISOString()} />
-              <SubmitButton size="sm">Wstrzymaj od {when(bar.lastActivityAt, now)}</SubmitButton>
+              <SubmitButton pendingLabel="Wstrzymuję…" size="sm">Wstrzymaj od {when(bar.lastActivityAt, now)}</SubmitButton>
             </form>
           )}
           <form action={pauseFromBarAction}>
             <input type="hidden" name="id" value={running.id} />
-            <SubmitButton size="sm" variant="outline">Wstrzymaj teraz</SubmitButton>
+            <SubmitButton pendingLabel="Wstrzymuję…" size="sm" variant="outline">Wstrzymaj teraz</SubmitButton>
           </form>
           <Snooze kind="pause" keepLabel="Pracuję dalej" />
         </div>
@@ -63,11 +63,11 @@ export async function TimeBar() {
           <form action={resumeFromBarAction}>
             <input type="hidden" name="id" value={running.id} />
             <input type="hidden" name="at" value={bar.from.toISOString()} />
-            <SubmitButton size="sm">Wznów od {when(bar.from, now)}</SubmitButton>
+            <SubmitButton pendingLabel="Wznawiam…" size="sm">Wznów od {when(bar.from, now)}</SubmitButton>
           </form>
           <form action={resumeFromBarAction}>
             <input type="hidden" name="id" value={running.id} />
-            <SubmitButton size="sm" variant="outline">Wznów od teraz</SubmitButton>
+            <SubmitButton pendingLabel="Wznawiam…" size="sm" variant="outline">Wznów od teraz</SubmitButton>
           </form>
           <Snooze kind="start" keepLabel="Nie teraz" />
         </div>
@@ -88,12 +88,12 @@ export async function TimeBar() {
             <form action={stopFromBarAction}>
               <input type="hidden" name="id" value={running.id} />
               <input type="hidden" name="endedAt" value={bar.lastActivityAt.toISOString()} />
-              <SubmitButton size="sm">Zakończ o {when(bar.lastActivityAt, now)}</SubmitButton>
+              <SubmitButton pendingLabel="Kończę…" size="sm">Zakończ o {when(bar.lastActivityAt, now)}</SubmitButton>
             </form>
           )}
           <form action={stopFromBarAction}>
             <input type="hidden" name="id" value={running.id} />
-            <SubmitButton size="sm" variant="outline">Zakończ teraz</SubmitButton>
+            <SubmitButton pendingLabel="Kończę…" size="sm" variant="outline">Zakończ teraz</SubmitButton>
           </form>
           <Snooze kind="idle" keepLabel="Pracuję dalej" />
         </div>
@@ -117,10 +117,10 @@ export async function TimeBar() {
             ))}
           </NativeSelect>
           <Input name="newActivity" maxLength={100} placeholder="lub nowa czynność" aria-label="Nowa czynność" className="h-7 w-40 text-sm" />
-          <SubmitButton size="sm" name="mode" value="from">
+          <SubmitButton pendingLabel="Włączam…" size="sm" name="mode" value="from">
             Włącz od {when(bar.from, now)}
           </SubmitButton>
-          <SubmitButton size="sm" variant="outline" name="mode" value="now">
+          <SubmitButton pendingLabel="Włączam…" size="sm" variant="outline" name="mode" value="now">
             Włącz od teraz
           </SubmitButton>
         </form>
@@ -137,14 +137,14 @@ function Snooze({ kind, keepLabel }: { kind: "idle" | "pause" | "start"; keepLab
       <form action={snoozeTimeBarAction}>
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="mode" value="2h" />
-        <SubmitButton size="sm" variant="ghost" className="text-muted-foreground" title="Ukryj pasek na 2 godziny">
+        <SubmitButton pendingLabel="Zapisuję…" size="sm" variant="ghost" className="text-muted-foreground" title="Ukryj pasek na 2 godziny">
           {keepLabel}
         </SubmitButton>
       </form>
       <form action={snoozeTimeBarAction}>
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="mode" value="day" />
-        <SubmitButton size="sm" variant="ghost" className="text-muted-foreground" title="Ukryj pasek do końca dnia">
+        <SubmitButton pendingLabel="Zapisuję…" size="sm" variant="ghost" className="text-muted-foreground" title="Ukryj pasek do końca dnia">
           Nie dziś
         </SubmitButton>
       </form>

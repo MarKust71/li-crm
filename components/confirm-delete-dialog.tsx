@@ -2,8 +2,6 @@
 
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -12,6 +10,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { PendingCancel, PendingWatch, usePendingDialog } from "@/components/pending-dialog";
+import { SubmitButton } from "@/components/submit-button";
 
 type Props = {
   /** Nazwa pola formularza, pod którą akcja odbiera identyfikator (np. "eventId"). */
@@ -24,6 +24,8 @@ type Props = {
   /** Etykiety (domyślnie "usuń" / "Usuń") i dodatkowe ukryte pola formularza (np. adres powrotu). */
   triggerLabel?: string;
   confirmLabel?: string;
+  /** Napis na przycisku potwierdzenia w trakcie akcji. */
+  pendingLabel?: string;
   extra?: Record<string, string>;
 };
 
@@ -36,30 +38,33 @@ export function ConfirmDeleteDialog({
   description,
   triggerLabel = "usuń",
   confirmLabel = "Usuń",
+  pendingLabel = "Usuwam…",
   extra,
 }: Props) {
+  const pendingDialog = usePendingDialog();
   return (
-    <AlertDialog>
+    <AlertDialog {...pendingDialog.dialog}>
       <AlertDialogTrigger asChild>
         <Button variant="ghost" size="xs" className="text-muted-foreground">
           {triggerLabel}
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent {...pendingDialog.content}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Anuluj</AlertDialogCancel>
-          <form action={action}>
+          <form action={action} className="contents">
             <input type="hidden" name={fieldName} value={id} />
             {Object.entries(extra ?? {}).map(([k, v]) => (
               <input key={k} type="hidden" name={k} value={v} />
             ))}
-            <AlertDialogAction type="submit" variant="destructive">
+            <PendingWatch {...pendingDialog.watch} />
+            <PendingCancel>Anuluj</PendingCancel>
+            <SubmitButton variant="destructive" pendingLabel={pendingLabel}>
               {confirmLabel}
-            </AlertDialogAction>
+            </SubmitButton>
           </form>
         </AlertDialogFooter>
       </AlertDialogContent>

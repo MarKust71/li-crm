@@ -32,6 +32,11 @@ Schemat bazy: `prisma/schema.prisma`.
 - Każda Server Action zaczyna się od `await requireAccess()` (`lib/access.ts`): proxy nie jest pełną autoryzacją.
   Unieważnienie wszystkich sesji = zmiana `AUTH_SECRET`.
 - UI i komunikaty po polsku, identyfikatory w kodzie po angielsku.
+- Każdy przycisk zapisujący dane to `SubmitButton` (`components/submit-button.tsx`, nie `<Button type="submit">`), z `pendingLabel` zależnym od akcji
+  („Zapisuję…”, „Dodaję…”, „Usuwam…”; przy przyciskach z samą ikoną wystarczy kółko). Do końca akcji blokuje wszystkie przyciski formularza, a kółko
+  ma tylko kliknięty (w formularzu z kilkoma przyciskami muszą się różnić `formAction` albo parą `name`/`value`). Przyciski bez formularza (`onClick`)
+  blokują się własnym stanem i pokazują `Spinner`. Okno potwierdzenia z zapisem zostaje otwarte do końca akcji: `usePendingDialog`, `PendingWatch`
+  i `PendingCancel` (`components/pending-dialog.tsx`) zamiast `AlertDialogAction`/`AlertDialogCancel`. Formularze `method="get"` (filtry) tego nie dotyczą.
 - Arkusze Google są tylko źródłem importu. Nie zapisujemy do nich.
 - Synchronizacja z Kalendarzem Google "dMb" idzie przez n8n (workflow "li-crm: synchronizacja z Kalendarzem Google", pyta aplikację
   przez `/api/sync/*` z nagłówkiem `x-api-key`). Logika jest w aplikacji: czyste funkcje w `lib/calendar-sync-core.ts` i

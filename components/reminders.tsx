@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -103,17 +103,17 @@ export function ReminderItem({ r, today, back, showContact = true }: ItemProps) 
         {isDone ? (
           <form action={reopenReminderAction}>
             {hidden}
-            <Button type="submit" variant="ghost" size="xs" className="text-muted-foreground">
+            <SubmitButton pendingLabel="Cofam…" variant="ghost" size="xs" className="text-muted-foreground">
               cofnij
-            </Button>
+            </SubmitButton>
           </form>
         ) : (
           <>
             <form action={completeReminderAction}>
               {hidden}
-              <Button type="submit" size="sm">
+              <SubmitButton pendingLabel="Zapisuję…" size="sm">
                 Zrobione
-              </Button>
+              </SubmitButton>
             </form>
             <details className="text-sm">
               <summary className="cursor-pointer text-muted-foreground">Przełóż</summary>
@@ -125,9 +125,9 @@ export function ReminderItem({ r, today, back, showContact = true }: ItemProps) 
                   </Label>
                   <Input id={`rs-${r.id}`} type="date" name="dueDate" defaultValue={addDays(today, 1)} required className="w-auto" />
                 </div>
-                <Button type="submit" variant="outline" size="sm">
+                <SubmitButton pendingLabel="Zapisuję…" variant="outline" size="sm">
                   Zapisz
-                </Button>
+                </SubmitButton>
               </form>
             </details>
             <ConfirmDeleteDialog
@@ -137,6 +137,7 @@ export function ReminderItem({ r, today, back, showContact = true }: ItemProps) 
               extra={{ back }}
               triggerLabel="anuluj"
               confirmLabel="Anuluj przypomnienie"
+              pendingLabel="Anuluję…"
               title="Anulować przypomnienie?"
               description="Przypomnienie zniknie z listy. Wiersz zostaje w bazie, żeby powiązane wydarzenie w kalendarzu Google dało się usunąć."
             />
@@ -175,12 +176,12 @@ export function AddReminderForm({ contactId, back }: { contactId: string; back: 
           <Textarea id={`nt-${contactId}`} name="note" rows={2} maxLength={2000} />
         </div>
         <div className="flex flex-wrap justify-end gap-2 sm:col-span-2">
-          <Button type="submit" name="kind" value="REMINDER">
+          <SubmitButton pendingLabel="Dodaję…" name="kind" value="REMINDER">
             Dodaj przypomnienie
-          </Button>
-          <Button type="submit" name="kind" value="RECONNECT" variant="outline" title="Stałe 3 tygodnie: tyle LinkedIn każe czekać z ponownym zaproszeniem">
+          </SubmitButton>
+          <SubmitButton pendingLabel="Dodaję…" name="kind" value="RECONNECT" variant="outline" title="Stałe 3 tygodnie: tyle LinkedIn każe czekać z ponownym zaproszeniem">
             Re-connect za {RECONNECT_DAYS / 7} tyg.
-          </Button>
+          </SubmitButton>
         </div>
       </form>
     </details>

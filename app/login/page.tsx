@@ -1,8 +1,8 @@
+import { SubmitButton } from "@/components/submit-button";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import pkg from "../../package.json";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,7 +75,7 @@ function PasswordForm({ error, next }: { error: string | undefined; next: string
         <Label htmlFor="password">Hasło</Label>
         <Input id="password" name="password" type="password" autoComplete="current-password" autoFocus required maxLength={200} />
       </div>
-      <Button type="submit">Zaloguj</Button>
+      <SubmitButton pendingLabel="Loguję…">Zaloguj</SubmitButton>
     </form>
   );
 }

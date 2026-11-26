@@ -3,8 +3,6 @@
 import { useState } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -13,6 +11,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { PendingCancel, PendingWatch, usePendingDialog } from "@/components/pending-dialog";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -51,26 +51,28 @@ export function PurgeLog({ action }: Props) {
 }
 
 function Confirm({ action, scope, before, label, title, description, disabled }: { action: Props["action"]; scope: string; before: string; label: string; title: string; description: string; disabled?: boolean }) {
+  const pendingDialog = usePendingDialog();
   return (
-    <AlertDialog>
+    <AlertDialog {...pendingDialog.dialog}>
       <AlertDialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" disabled={disabled}>
           {label}
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent {...pendingDialog.content}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Anuluj</AlertDialogCancel>
-          <form action={action}>
+          <form action={action} className="contents">
             <input type="hidden" name="scope" value={scope} />
             <input type="hidden" name="before" value={before} />
-            <AlertDialogAction type="submit" variant="destructive">
+            <PendingWatch {...pendingDialog.watch} />
+            <PendingCancel>Anuluj</PendingCancel>
+            <SubmitButton variant="destructive" pendingLabel="Usuwam…">
               Usuń
-            </AlertDialogAction>
+            </SubmitButton>
           </form>
         </AlertDialogFooter>
       </AlertDialogContent>
