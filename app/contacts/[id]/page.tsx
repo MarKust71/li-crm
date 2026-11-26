@@ -10,7 +10,6 @@ import { StepMessageField } from "@/components/step-message-field";
 import { SiteNav } from "@/components/site-nav";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -192,6 +191,7 @@ async function ContactHeader({ params }: Pick<Props, "params">) {
             <input type="hidden" name="id" value={contact.id} />
             <input type="hidden" name="value" value={contact.openToWork ? "0" : "1"} />
             <SubmitButton
+              pendingLabel="Zapisuję…"
               variant={contact.openToWork ? "default" : "outline"}
               size="xs"
               aria-pressed={contact.openToWork}
@@ -398,9 +398,9 @@ async function ContactCard({ params, searchParams }: Props) {
                   <Label htmlFor="info">Notatki</Label>
                   <Textarea id="info" name="info" rows={5} defaultValue={contact.info ?? ""} maxLength={10000} />
                 </div>
-                <Button type="submit" variant="outline" className="self-end">
+                <SubmitButton pendingLabel="Zapisuję…" variant="outline" className="self-end">
                   Zapisz
-                </Button>
+                </SubmitButton>
               </form>
             </details>
 
@@ -409,9 +409,9 @@ async function ContactCard({ params, searchParams }: Props) {
               {contact.archived ? (
                 <form action={unarchiveAction} className={form}>
                   <input type="hidden" name="id" value={contact.id} />
-                  <Button type="submit" variant="outline" className="self-end">
+                  <SubmitButton pendingLabel="Przywracam…" variant="outline" className="self-end">
                     Przywróć z archiwum
-                  </Button>
+                  </SubmitButton>
                 </form>
               ) : (
                 <form action={archiveAction} className={form}>
@@ -439,9 +439,9 @@ async function ContactCard({ params, searchParams }: Props) {
                       Uwaga: umówione spotkanie ({meetings.map((m) => `${m.type === "FOLLOW_UP" ? "FU" : "BOM"} ${dateTimeFmt.format(m.scheduledAt)}`).join(", ")}) zostaje w kalendarzu. Jeśli się nie odbędzie, odwołaj je w historii kontaktu.
                     </p>
                   )}
-                  <Button type="submit" variant="outline" className="self-end">
+                  <SubmitButton pendingLabel="Archiwizuję…" variant="outline" className="self-end">
                     Archiwizuj
-                  </Button>
+                  </SubmitButton>
                 </form>
               )}
             </details>
@@ -476,9 +476,9 @@ async function ContactCard({ params, searchParams }: Props) {
               {steps.length > 0 ? (
                 <div className="flex flex-wrap justify-end gap-2">
                   {steps.map((t, i) => (
-                    <Button key={t} type="submit" name="type" value={t} variant={i === 0 ? "default" : "outline"}>
+                    <SubmitButton key={t} name="type" value={t} variant={i === 0 ? "default" : "outline"} pendingLabel="Dodaję…">
                       {EVENT_LABEL[t]}
-                    </Button>
+                    </SubmitButton>
                   ))}
                 </div>
               ) : (
@@ -514,9 +514,9 @@ async function ContactCard({ params, searchParams }: Props) {
                   <Label htmlFor="other-scheduled">Termin spotkania (wymagany dla „BOM umówiony” i „Follow-up”)</Label>
                   <Input id="other-scheduled" type="datetime-local" name="scheduledAt" />
                 </div>
-                <Button type="submit" variant="outline" className="self-end">
+                <SubmitButton pendingLabel="Dodaję…" variant="outline" className="self-end">
                   Dodaj
-                </Button>
+                </SubmitButton>
               </AskedOpenForm>
             </details>
           </CardContent>

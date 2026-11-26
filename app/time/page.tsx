@@ -5,8 +5,8 @@ import { Suspense } from "react";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import { Elapsed } from "@/components/elapsed";
 import { SiteNav } from "@/components/site-nav";
+import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -179,9 +179,9 @@ async function TimeContent({ searchParams }: { searchParams: SearchParams }) {
                             <Label htmlFor={`n-${e.id}`}>Notatka</Label>
                             <Textarea id={`n-${e.id}`} name="note" rows={2} defaultValue={e.note ?? ""} maxLength={2000} />
                           </div>
-                          <Button type="submit" variant="outline" className="self-start sm:col-span-2">
+                          <SubmitButton pendingLabel="Zapisuję…" variant="outline" className="self-start sm:col-span-2">
                             Zapisz
-                          </Button>
+                          </SubmitButton>
                         </form>
                       </details>
                       <ConfirmDeleteDialog
@@ -264,9 +264,9 @@ function StartCard({ activities }: { activities: Activities }) {
       <CardContent>
         <form action={startAction} className="grid gap-3 sm:grid-cols-2">
           <ActivityFields activities={activities} selectedId="" idPrefix="start" />
-          <Button type="submit" className="self-start sm:col-span-2">
+          <SubmitButton pendingLabel="Uruchamiam…" className="self-start sm:col-span-2">
             Start
-          </Button>
+          </SubmitButton>
         </form>
         <p className="mt-2 text-xs text-muted-foreground">Czynność, liczbę sztuk i godziny możesz ustawić przy zakończeniu.</p>
       </CardContent>
@@ -305,9 +305,9 @@ function RunningCard({
           {running.pausedSeconds > 0 && <span className="text-sm text-muted-foreground">przerwy: {Math.round(running.pausedSeconds / 60)} min</span>}
           <form action={running.pausedAt ? resumeFromBarAction : pauseFromBarAction}>
             <input type="hidden" name="id" value={running.id} />
-            <Button type="submit" size="icon-sm" variant="outline" aria-label={running.pausedAt ? "Wznów" : "Pauza"} title={running.pausedAt ? "Wznów" : "Pauza"}>
+            <SubmitButton size="icon-sm" variant="outline" aria-label={running.pausedAt ? "Wznów" : "Pauza"} title={running.pausedAt ? "Wznów" : "Pauza"}>
               {running.pausedAt ? <Play aria-hidden /> : <Pause aria-hidden />}
-            </Button>
+            </SubmitButton>
           </form>
         </div>
         <form action={stopAction} className="grid gap-3 sm:grid-cols-2">
@@ -331,9 +331,9 @@ function RunningCard({
             <Label htmlFor="run-note">Notatka</Label>
             <Textarea id="run-note" name="note" rows={2} defaultValue={running.note ?? ""} maxLength={2000} />
           </div>
-          <Button type="submit" className="self-start sm:col-span-2">
+          <SubmitButton pendingLabel="Kończę…" className="self-start sm:col-span-2">
             Zakończ sesję
-          </Button>
+          </SubmitButton>
         </form>
       </CardContent>
     </Card>

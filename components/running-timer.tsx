@@ -4,10 +4,10 @@ import { Pause, Play } from "lucide-react";
 import { useActionState } from "react";
 import { pauseFromBarAction, quickStopAction, resumeFromBarAction, type QuickStopState } from "@/app/time/actions";
 import { Elapsed } from "@/components/elapsed";
+import { PendingCancel, PendingWatch, usePendingDialog } from "@/components/pending-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -32,9 +32,10 @@ type Props = {
 /** Licznik trwającej sesji w nawigacji; kliknięcie otwiera okienko zatrzymania (godzina końca, czynność, liczba sztuk). */
 export function RunningTimer({ entryId, startedAt, pausedAt, pausedSeconds, activityId, activityName, activities }: Props) {
   const [state, action] = useActionState<QuickStopState, FormData>(quickStopAction, null);
+  const pendingDialog = usePendingDialog({ closeWhenDone: false });
   return (
     <>
-    <AlertDialog>
+    <AlertDialog {...pendingDialog.dialog}>
       <AlertDialogTrigger asChild>
         <button
           type="button"
@@ -46,7 +47,7 @@ export function RunningTimer({ entryId, startedAt, pausedAt, pausedSeconds, acti
           {activityName && <span className="max-w-40 truncate text-muted-foreground">{activityName}</span>}
         </button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent {...pendingDialog.content}>
         <AlertDialogHeader>
           <AlertDialogTitle>Zatrzymać rejestrowanie czasu?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -84,7 +85,8 @@ export function RunningTimer({ entryId, startedAt, pausedAt, pausedSeconds, acti
             </p>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <PendingWatch {...pendingDialog.watch} />
+            <PendingCancel>Anuluj</PendingCancel>
             <SubmitButton variant="destructive" pendingLabel="Zatrzymuję…">
               Zatrzymaj
             </SubmitButton>

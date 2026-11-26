@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/submit-button";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -115,9 +116,9 @@ async function LogoutButton() {
   if (!(await cookies()).get(SESSION_COOKIE)) return null;
   return (
     <form action={logoutAction}>
-      <Button type="submit" size="sm" variant="ghost" className="text-muted-foreground">
+      <SubmitButton pendingLabel="Wylogowuję…" size="sm" variant="ghost" className="text-muted-foreground">
         Wyloguj
-      </Button>
+      </SubmitButton>
     </form>
   );
 }

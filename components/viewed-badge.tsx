@@ -2,8 +2,6 @@
 
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -13,6 +11,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PendingCancel, PendingWatch, usePendingDialog } from "@/components/pending-dialog";
+import { SubmitButton } from "@/components/submit-button";
 
 type Props = {
   contactId: string;
@@ -27,6 +27,7 @@ type Props = {
  * Gdy nie: klikalny, ale dodanie zdarzenia (praktycznie nieodwracalne) wymaga potwierdzenia.
  */
 export function ViewedBadge({ contactId, viewed, title, action }: Props) {
+  const pendingDialog = usePendingDialog();
   if (viewed) {
     return (
       <Badge variant="default" title={title} className="font-semibold">
@@ -35,13 +36,13 @@ export function ViewedBadge({ contactId, viewed, title, action }: Props) {
     );
   }
   return (
-    <AlertDialog>
+    <AlertDialog {...pendingDialog.dialog}>
       <AlertDialogTrigger asChild>
         <Button variant="outline" size="xs" title={title} className="rounded-full font-semibold">
           Viewed
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent {...pendingDialog.content}>
         <AlertDialogHeader>
           <AlertDialogTitle>Dodać zdarzenie „Wyświetlił(a) mój profil”?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -49,10 +50,11 @@ export function ViewedBadge({ contactId, viewed, title, action }: Props) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Anuluj</AlertDialogCancel>
-          <form action={action}>
+          <form action={action} className="contents">
             <input type="hidden" name="id" value={contactId} />
-            <AlertDialogAction type="submit">Dodaj</AlertDialogAction>
+            <PendingWatch {...pendingDialog.watch} />
+            <PendingCancel>Anuluj</PendingCancel>
+            <SubmitButton pendingLabel="Dodaję…">Dodaj</SubmitButton>
           </form>
         </AlertDialogFooter>
       </AlertDialogContent>
