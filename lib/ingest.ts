@@ -1,37 +1,57 @@
 import { logActivity } from "./activity-log";
 import { dropCandidates, upsertCandidates } from "./candidates";
 import { cleanOccupation } from "./contacts";
-import { nameMatchesProfile, parseViewedAgo, profileReportText, pymkReportText, resolveScrapedAt, reportText, type IngestReport, type ProfileInput, type ProfileReport, type OtwReading, type PymkInput, type PymkReport, type ViewerInput } from "./ingest-core";
+import { contactChangeText, nameMatchesProfile, parseViewedAgo, profileReportText, pymkReportText, resolveScrapedAt, reportText, type ContactChange, type IngestReport, type ProfileInput, type ProfileReport, type OtwReading, type PymkInput, type PymkReport, type ViewerInput } from "./ingest-core";
 import { normalizeProfileUrl } from "./profile-url";
 import { prisma } from "./prisma";
 
 /**
  * Ustawia „Open to work” znanym kontaktom wg odczytu z rozszerzenia (true/false; null = brak odczytu, bez zmiany).
- * Każda zmiana trafia do dziennika (`contact.open_to_work`). Zwraca liczby włączonych i wyłączonych.
+ * Zmiany dopisuje do `changes` (trafią do dziennika). Zwraca liczby włączonych i wyłączonych.
  */
 async function syncOpenToWork(
   people: { profileUrl: string; openToWork: OtwReading }[],
   known: Map<string, { id: string; name: string; openToWork: boolean }>,
-  origin: string,
+  changes: ContactChanges,
 ): Promise<{ set: number; cleared: number }> {
-  const changes = people.flatMap((p) => {
+  const flips = people.flatMap((p) => {
     const c = known.get(p.profileUrl);
     return c && p.openToWork !== null && p.openToWork !== c.openToWork ? [{ id: c.id, name: c.name, on: p.openToWork }] : [];
   });
   const out = { set: 0, cleared: 0 };
   for (const on of [true, false]) {
-    const ids = changes.filter((c) => c.on === on).map((c) => c.id);
-    if (!ids.length) continue;
-    const res = await prisma.contact.updateMany({ where: { id: { in: ids }, openToWork: !on }, data: { openToWork: on } });
+    const batch = flips.filter((c) => c.on === on);
+    if (!batch.length) continue;
+    const res = await prisma.contact.updateMany({ where: { id: { in: batch.map((c) => c.id) }, openToWork: !on }, data: { openToWork: on } });
     if (on) out.set = res.count;
     else out.cleared = res.count;
-  }
-  if (changes.length) {
-    await prisma.activityLog.createMany({
-      data: changes.map((c) => ({ source: "SYNC" as const, action: "contact.open_to_work", contactId: c.id, summary: `Open to work ${c.on ? "włączono" : "wyłączono"} (odczyt z ${origin}): ${c.name}` })),
-    });
+    for (const c of batch) noteChange(changes, c, { openToWork: on ? "on" : "off" });
   }
   return out;
+}
+
+/** Zmiany z jednego importu zebrane po kontakcie (klucz = id): jedna osoba to jeden wpis w dzienniku. */
+type ContactChanges = Map<string, ContactChange>;
+
+function noteChange(changes: ContactChanges, contact: { id: string; name: string }, change: Omit<ContactChange, "name">): void {
+  changes.set(contact.id, { ...changes.get(contact.id), name: contact.name, ...change });
+}
+
+/**
+ * Wpisy o konkretnych osobach: jeden na każdy zmieniony kontakt (z linkiem) i na każdą nową osobę w poczekalni. Zapis zbiorczy (jedno zapytanie);
+ * jak w logActivity błąd zapisu nie przerywa importu.
+ */
+async function logPeople(origin: string, changes: ContactChanges, queued: { name: string }[]): Promise<void> {
+  const data = [
+    ...[...changes].map(([contactId, c]) => ({ source: "SYNC" as const, action: "ingest.contact_updated", contactId, summary: contactChangeText(origin, c) })),
+    ...queued.map((c) => ({ source: "SYNC" as const, action: "ingest.candidate_queued", summary: `${origin}: ${c.name}, nowa osoba w poczekalni` })),
+  ];
+  if (!data.length) return;
+  try {
+    await prisma.activityLog.createMany({ data });
+  } catch (e) {
+    console.error("activity log:", e instanceof Error ? e.message : e);
+  }
 }
 
 /**
@@ -77,6 +97,8 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
     people.push({ profileUrl, name: item.name, occupation: nameOk ? cleanOccupation(item.occupation) : null, nameOk, viewed: parseViewedAgo(item.viewedAt, scrapedAt), openToWork: item.openToWork });
   }
 
+  const origin = "Kto oglądał profil";
+  const changes: ContactChanges = new Map();
   try {
     const select = { id: true, profileUrl: true, name: true, occupation: true, archived: true, openToWork: true } as const;
     const known = new Map((await prisma.contact.findMany({ where: { profileUrl: { in: people.map((p) => p.profileUrl) } }, select })).map((c) => [c.profileUrl, c]));
@@ -98,8 +120,9 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
     if (fills.length) {
       await prisma.$transaction(fills.map((p) => prisma.contact.update({ where: { id: known.get(p.profileUrl)!.id }, data: { occupation: p.occupation } })));
       report.occupationFilled = fills.length;
+      for (const p of fills) noteChange(changes, known.get(p.profileUrl)!, { occupationFilled: true });
     }
-    const otw = await syncOpenToWork(people, known, "listy oglądających");
+    const otw = await syncOpenToWork(people, known, changes);
     report.openToWorkSet = otw.set;
     report.openToWorkCleared = otw.cleared;
 
@@ -114,13 +137,18 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
       const byContact = new Map<string, number[]>();
       for (const e of existing) byContact.set(e.contactId, [...(byContact.get(e.contactId) ?? []), e.occurredAt.getTime()]);
       const add: { contactId: string; type: "VIEWED_MY_PROFILE"; occurredAt: Date }[] = [];
+      const viewed: { contact: { id: string; name: string }; at: Date }[] = [];
       for (const p of targets) {
         const contactId = known.get(p.profileUrl)!.id;
         const dup = (byContact.get(contactId) ?? []).some((t) => Math.abs(t - p.viewed.at.getTime()) <= p.viewed.toleranceMs);
         if (dup) report.duplicates++;
-        else add.push({ contactId, type: "VIEWED_MY_PROFILE", occurredAt: p.viewed.at });
+        else {
+          add.push({ contactId, type: "VIEWED_MY_PROFILE", occurredAt: p.viewed.at });
+          viewed.push({ contact: known.get(p.profileUrl)!, at: p.viewed.at });
+        }
       }
       if (add.length) await prisma.contactEvent.createMany({ data: add });
+      for (const v of viewed) noteChange(changes, v.contact, { viewedAt: v.at });
       report.viewsAdded = add.length;
     }
 
@@ -146,10 +174,14 @@ export async function ingestViewers(items: ViewerInput[], invalidCount: number, 
     // osoba, która stała się kontaktem inną drogą, nie powinna wisieć w poczekalni (jej wyświetlenia przechodzą na kontakt)
     await dropCandidates([...known.keys()]);
   } catch (e) {
+    // to, co zdążyło się zapisać, ma zostać w dzienniku: ponowienie żądania uzna to już za niezmienione
+    await logPeople(origin, changes, report.queued);
     await logActivity({ source: "SYNC", action: "ingest.profile_viewers", level: "ERROR", summary: `Kto oglądał profil: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
     throw e;
   }
 
+  // przed podsumowaniem, żeby w dzienniku (od najnowszych) było nad szczegółami
+  await logPeople(origin, changes, report.queued);
   await logActivity({
     source: "SYNC",
     action: "ingest.profile_viewers",
@@ -267,6 +299,7 @@ export async function ingestPymk(
     people.push({ profileUrl, name: item.name, occupation: cleanOccupation(item.occupation), openToWork: item.openToWork });
   }
 
+  const changes: ContactChanges = new Map();
   try {
     const select = { id: true, profileUrl: true, name: true, occupation: true, openToWork: true } as const;
     const known = new Map((await prisma.contact.findMany({ where: { profileUrl: { in: people.map((p) => p.profileUrl) } }, select })).map((c) => [c.profileUrl, c]));
@@ -287,17 +320,20 @@ export async function ingestPymk(
     if (fills.length) {
       await prisma.$transaction(fills.map((p) => prisma.contact.update({ where: { id: known.get(p.profileUrl)!.id }, data: { occupation: p.occupation } })));
       report.occupationFilled = fills.length;
+      for (const p of fills) noteChange(changes, known.get(p.profileUrl)!, { occupationFilled: true });
     }
-    const otw = await syncOpenToWork(people, known, `„${label}”`);
+    const otw = await syncOpenToWork(people, known, changes);
     report.openToWorkSet = otw.set;
     report.openToWorkCleared = otw.cleared;
     // osoba, która stała się kontaktem inną drogą, nie powinna wisieć w poczekalni
     await dropCandidates([...known.keys()]);
   } catch (e) {
+    await logPeople(label, changes, report.queued);
     await logActivity({ source: "SYNC", action, level: "ERROR", summary: `${label}: błąd przetwarzania (${e instanceof Error ? e.message.slice(0, 200) : "nieznany"})` });
     throw e;
   }
 
+  await logPeople(label, changes, report.queued);
   await logActivity({
     source: "SYNC",
     action,

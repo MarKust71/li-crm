@@ -1,3 +1,4 @@
+import { warsawDateOf } from "./dates";
 import { SITE, link } from "./notify-core";
 
 // Czysta logika przyjmowania danych z rozszerzenia (bez bazy). Warstwa bazy: lib/ingest.ts.
@@ -289,4 +290,23 @@ export function pymkReportText(r: PymkReport, title = "People you may know"): st
   }
   lines.push("", link("Poczekalnia", `${SITE}/inbox`));
   return lines.join("\n").slice(0, 3900);
+}
+
+// ───────────── Wpisy dziennika o konkretnych osobach (trzy masowe importy) ─────────────
+
+export type ContactChange = {
+  name: string;
+  /** moment nowo zapisanego wyświetlenia profilu */
+  viewedAt?: Date;
+  occupationFilled?: boolean;
+  openToWork?: "on" | "off";
+};
+
+/** Opis zmian jednego kontaktu. Przy wyświetleniu sama data: LinkedIn zaokrągla czas („3d ago”), więc godzina udawałaby dokładność. */
+export function contactChangeText(origin: string, c: ContactChange): string {
+  const parts: string[] = [];
+  if (c.viewedAt) parts.push(`nowe wyświetlenie ${warsawDateOf(c.viewedAt).split("-").reverse().join(".")}`);
+  if (c.occupationFilled) parts.push("uzupełniono zajęcie");
+  if (c.openToWork) parts.push(`Open to work ${c.openToWork === "on" ? "włączono" : "wyłączono"}`);
+  return `${origin}: ${c.name} (${parts.join(", ")})`;
 }
