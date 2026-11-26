@@ -2,7 +2,7 @@
  * Wspólne funkcje skryptów pracujących na oficjalnym eksporcie danych LinkedIn (CSV): parser, daty, wczytanie pliku.
  * Używają go `linkedin-compare-export.ts` i `import-linkedin-export.ts` (spec 13.6a).
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 export function parseCsv(text: string): string[][] {
@@ -47,6 +47,29 @@ export function loadCsv(dir: string, name: string): Record<string, string>[] {
   const hi = rows.findIndex((r) => r.length === n);
   const head = rows[hi];
   return rows.slice(hi + 1).filter((r) => r.length === n).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+}
+
+/** Usuwa identyczne rekordy (kolejność kluczy bez znaczenia), zostawia pierwsze wystąpienie. */
+function dedupeRows(rows: Record<string, string>[]): Record<string, string>[] {
+  const seen = new Map<string, Record<string, string>>();
+  for (const r of rows) {
+    const key = JSON.stringify(Object.keys(r).sort().map((k) => [k, r[k]]));
+    if (!seen.has(key)) seen.set(key, r);
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Wczytuje surowy snapshot z API zapisany przez `linkedin-probe.ts` (`snapshot-<DOMENA>.json`); pola jak w CSV.
+ * API zwraca prawie każdy rekord dwa razy, więc usuwa powtórki. Pusta lista to błąd: sonda zapisuje ją też po 404.
+ */
+export function loadSnapshot(dir: string, domain: string): { rows: Record<string, string>[]; raw: number; savedAt: Date } {
+  const file = join(dir, `snapshot-${domain}.json`);
+  const data = JSON.parse(readFileSync(file, "utf8")) as Record<string, string>[];
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error(`snapshot-${domain}.json jest pusty. Pobierz dane ponownie: npm run linkedin:probe -- snapshot ${domain}`);
+  }
+  return { rows: dedupeRows(data), raw: data.length, savedAt: statSync(file).mtime };
 }
 
 const warsaw = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" });
