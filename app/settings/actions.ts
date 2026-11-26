@@ -6,7 +6,10 @@ import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity-log";
 import { scheduleBomDraftsForLinkChange } from "@/lib/bom-draft";
 import { markUpcomingMeetingsPending } from "@/lib/contact-events";
-import { requestManualSync, requestNotifyTest, setIntervalMinutes, setMeetingLink, setNotifySettings, setTimeSettings } from "@/lib/settings";
+import {
+  getReportSettings, requestManualSync, requestNotifyTest, requestReportTest, setIntervalMinutes, setMeetingLink, setNotifySettings, setReportSettings,
+  setTimeSettings,
+} from "@/lib/settings";
 
 export async function saveIntervalAction(formData: FormData) {
   await requireAccess();
@@ -60,6 +63,34 @@ export async function notifyTestAction() {
   await logActivity({ source: "UI", action: "settings.notify_test", summary: "Zażądano wiadomości testowej Telegram" });
   revalidatePath("/settings");
   redirect("/settings?notifyTest=1");
+}
+
+export async function saveReportAction(formData: FormData) {
+  await requireAccess();
+  const hourRaw = formData.get("reportHour");
+  const sendHour = hourRaw === "off" ? -1 : Number(hourRaw);
+  const recipient = String(formData.get("reportRecipient") ?? "");
+  const ok = await setReportSettings({ recipient, sendHour });
+  if (ok) {
+    // adresu nie logujemy
+    await logActivity({
+      source: "UI",
+      action: "settings.report",
+      summary: `Raport dzienny e-mailem: ${sendHour < 0 ? "wyłączony" : !recipient.trim() ? "bez adresu (nie wychodzi)" : `od ${String(sendHour).padStart(2, "0")}:00`}`,
+      details: { sendHour, hasRecipient: Boolean(recipient.trim()) },
+    });
+  }
+  revalidatePath("/settings");
+  redirect(ok ? "/settings?reportSaved=1" : "/settings?error=report");
+}
+
+export async function reportTestAction() {
+  await requireAccess();
+  if (!(await getReportSettings()).recipient) redirect("/settings?error=reportRecipient");
+  await requestReportTest();
+  await logActivity({ source: "UI", action: "settings.report_test", summary: "Zażądano testowego raportu e-mailem" });
+  revalidatePath("/settings");
+  redirect("/settings?reportTest=1");
 }
 
 export async function saveTimeSettingsAction(formData: FormData) {

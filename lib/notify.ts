@@ -4,10 +4,15 @@ import { MEETING_TYPES, OUTCOME_TYPES, meetingOutcome } from "./meeting-sync-cor
 import {
   dateLabelPl, digestDue, digestText, errorSignature, errorText, hhmm, meetingSoon, meetingSoonText, testText, warsawParts, type DigestMeeting,
 } from "./notify-core";
-import { getNotifySettings, getSyncSettings } from "./settings";
+import { getReportData } from "./report";
+import { reportDayDue, reportHtml, reportSubject, reportText } from "./report-core";
+import { getNotifySettings, getReportSettings, getSyncSettings } from "./settings";
 import { parseDateInput, addDays } from "./dates";
 
-export type OutMessage = { key: string; kind: "digest" | "meeting" | "error" | "test"; text: string };
+/** Bez `channel` wiadomość idzie na Telegram; `channel: "email"` n8n wysyła przez SMTP (`text` to wersja tekstowa maila). */
+export type OutMessage =
+  | { key: string; kind: "digest" | "meeting" | "error" | "test"; text: string }
+  | { key: string; kind: "report"; channel: "email"; to: string; subject: string; text: string; html: string };
 
 const RETAIN_DAYS = 60;
 
@@ -103,6 +108,26 @@ export async function getDueMessages(now = new Date()): Promise<OutMessage[]> {
   if (settings.testRequestedAt) {
     const key = `test:${settings.testRequestedAt.getTime()}`;
     if (!(await sentKeys([key])).has(key)) out.push({ key, kind: "test", text: testText() });
+  }
+
+  // 5) raport dzienny e-mailem (za poprzedni dzień) i jego wersja testowa na żądanie
+  const report = await getReportSettings();
+  const emails: { key: string; day: string; prefix: string }[] = [];
+  const dueDay = reportDayDue(report, now);
+  if (dueDay) emails.push({ key: `report:${dueDay}`, day: dueDay, prefix: "" });
+  if (report.testRequestedAt && report.recipient) {
+    emails.push({ key: `reporttest:${report.testRequestedAt.getTime()}`, day: addDays(today, -1), prefix: "[test] " });
+  }
+  const sentEmails = await sentKeys(emails.map((e) => e.key));
+  for (const { key, day, prefix } of emails) {
+    if (sentEmails.has(key)) continue;
+    // błąd raportu nie może zatrzymać powiadomień Telegram
+    try {
+      const data = await getReportData(day);
+      out.push({ key, kind: "report", channel: "email", to: report.recipient, subject: prefix + reportSubject(data), text: reportText(data), html: reportHtml(data) });
+    } catch (e) {
+      console.error("daily report:", e instanceof Error ? e.message : e);
+    }
   }
   return out;
 }

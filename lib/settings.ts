@@ -1,5 +1,6 @@
 import { DEFAULT_NOTIFY, type NotifySettings } from "./notify-core";
 import { prisma } from "./prisma";
+import { DEFAULT_REPORT, normalizeRecipient, type ReportSettings } from "./report-core";
 
 // Proste ustawienia aplikacji (tabela klucz → wartość).
 export const KEYS = {
@@ -88,6 +89,36 @@ export async function setNotifySettings(input: NotifySettings): Promise<boolean>
 }
 
 export const requestNotifyTest = () => setSetting(NOTIFY_KEYS.testRequestedAt, new Date().toISOString());
+
+// ───────────────────────── raport dzienny e-mailem ─────────────────────────
+
+export const REPORT_KEYS = {
+  recipient: "report.recipient",
+  sendHour: "report.sendHour",
+  testRequestedAt: "report.testRequestedAt",
+} as const;
+
+export async function getReportSettings(): Promise<ReportSettings & { testRequestedAt: Date | null }> {
+  const rows = await prisma.appSetting.findMany({ where: { key: { in: Object.values(REPORT_KEYS) } } });
+  const m = new Map(rows.map((r) => [r.key, r.value]));
+  return {
+    recipient: normalizeRecipient(m.get(REPORT_KEYS.recipient) ?? "") ?? "",
+    sendHour: intIn(m.get(REPORT_KEYS.sendHour), -1, 23, DEFAULT_REPORT.sendHour),
+    testRequestedAt: asDate(m.get(REPORT_KEYS.testRequestedAt) ?? null),
+  };
+}
+
+/** Zwraca false dla niepoprawnego adresu lub godziny (nic wtedy nie zapisuje). */
+export async function setReportSettings(input: ReportSettings): Promise<boolean> {
+  const recipient = normalizeRecipient(input.recipient);
+  const h = input.sendHour;
+  if (recipient === null || !Number.isInteger(h) || h < -1 || h > 23) return false;
+  await setSetting(REPORT_KEYS.recipient, recipient);
+  await setSetting(REPORT_KEYS.sendHour, String(h));
+  return true;
+}
+
+export const requestReportTest = () => setSetting(REPORT_KEYS.testRequestedAt, new Date().toISOString());
 
 // ───────────────────────── czas pracy: podpowiedzi ─────────────────────────
 

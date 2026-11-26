@@ -9,15 +9,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { syncStatus } from "@/lib/calendar-sync";
-import { MAX_IDLE_MINUTES, MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, MAX_MEETING_LINK_LENGTH, getMeetingLink, getNotifySettings, getTimeSettings } from "@/lib/settings";
+import { MAX_IDLE_MINUTES, MAX_INTERVAL_MINUTES, MAX_LEAD_MINUTES, MAX_MEETING_LINK_LENGTH, getMeetingLink, getNotifySettings, getReportSettings, getTimeSettings } from "@/lib/settings";
+import { MAX_RECIPIENT_LENGTH } from "@/lib/report-core";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { notifyTestAction, saveIntervalAction, saveMeetingLinkAction, saveNotifyAction, saveTimeSettingsAction, syncNowAction } from "./actions";
+import {
+  notifyTestAction, reportTestAction, saveIntervalAction, saveMeetingLinkAction, saveNotifyAction, saveReportAction, saveTimeSettingsAction, syncNowAction,
+} from "./actions";
 
 export const metadata: Metadata = { title: "Ustawienia · li-crm" };
 
 const dateFmt = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Warsaw" });
 
-export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string; meetingLinkSaved?: string }> }) {
+export default function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string; meetingLinkSaved?: string; reportSaved?: string; reportTest?: string }> }) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -31,11 +34,12 @@ export default function SettingsPage({ searchParams }: { searchParams: Promise<{
   );
 }
 
-async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string; meetingLinkSaved?: string }> }) {
+async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved?: string; requested?: string; error?: string; notifySaved?: string; notifyTest?: string; timeSaved?: string; meetingLinkSaved?: string; reportSaved?: string; reportTest?: string }> }) {
   await connection();
   const sp = await searchParams;
   const { settings: s, counts } = await syncStatus();
   const n = await getNotifySettings();
+  const r = await getReportSettings();
   const t = await getTimeSettings();
   const meetingLink = await getMeetingLink();
   const mode = s.intervalMinutes < 0 ? "off" : s.intervalMinutes === 0 ? "manual" : "interval";
@@ -137,6 +141,39 @@ async function SettingsContent({ searchParams }: { searchParams: Promise<{ saved
           </form>
         </CardContent>
       </Card>
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Raport dzienny e-mailem</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          Podsumowanie poprzedniego dnia i zaległości (kto czeka na podziękowanie i na pytanie o otwartość). Wysyła n8n przez SMTP, raz za każdy dzień.
+        </p>
+        {sp.reportSaved && <Alert><AlertDescription>Zapisano ustawienia raportu.</AlertDescription></Alert>}
+        {sp.reportTest && <Alert><AlertDescription>Zgłoszono testowy raport (za wczoraj). Przyjdzie e-mailem przy najbliższym sprawdzeniu (do minuty).</AlertDescription></Alert>}
+        {sp.error === "report" && <Alert variant="destructive"><AlertDescription>Niepoprawny adres e-mail (podaj jeden adres) albo godzina.</AlertDescription></Alert>}
+        {sp.error === "reportRecipient" && <Alert variant="destructive"><AlertDescription>Najpierw zapisz adres odbiorcy.</AlertDescription></Alert>}
+        <form action={saveReportAction} className="flex flex-col gap-3 rounded-lg border p-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="reportRecipient">Adres odbiorcy (puste = raport nie wychodzi)</Label>
+            <Input id="reportRecipient" name="reportRecipient" type="email" maxLength={MAX_RECIPIENT_LENGTH} defaultValue={r.recipient} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="reportHour">Wysyłaj raport za poprzedni dzień</Label>
+            <NativeSelect id="reportHour" name="reportHour" defaultValue={r.sendHour < 0 ? "off" : String(r.sendHour)}>
+              <NativeSelectOption value="off">Wyłączony</NativeSelectOption>
+              {Array.from({ length: 24 }, (_, h) => (
+                <NativeSelectOption key={h} value={String(h)}>{`od ${String(h).padStart(2, "0")}:00`}</NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div><SubmitButton pendingLabel="Zapisuję…">Zapisz</SubmitButton></div>
+        </form>
+        <form action={reportTestAction}>
+          <SubmitButton pendingLabel="Zgłaszam…" variant="secondary">Wyślij testowy raport</SubmitButton>
+        </form>
+      </CardContent>
+    </Card>
     <Card className="mt-4">
       <CardHeader>
         <CardTitle>Czas pracy: podpowiedzi</CardTitle>

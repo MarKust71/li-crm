@@ -88,6 +88,16 @@ Schemat bazy: `prisma/schema.prisma`.
   Wyjątek: `NOT_NOW` („Nie teraz", odpowiedź na pytanie o rozmowę) nie anuluje przypomnień, nie archiwizuje i nie zmienia etapu (zostaje
   „Zapytano o rozmowę", `lib/stage.ts`); w statystykach to osobny krok `notNow` pod „Zapytano o rozmowę". Bez zmian schematu: rozpoznajemy je po AUTO + REMINDER.
 
+- Raport dzienny e-mailem (`lib/report-core.ts` treść i termin, `lib/report.ts` zapytania): jeden mail za poprzedni dzień kalendarzowy
+  (czas warszawski), od ustawionej godziny (domyślnie 00:00), także gdy nic się nie działo. Adres i godzina w „Ustawienia” (`report.*` w `AppSetting`;
+  bez adresu nic nie wychodzi; adresu nie wpisywać do repozytorium ani dziennika). Idzie tym samym `/api/notify/pending` co Telegram: wiadomość z
+  `channel: "email"` (`to`, `subject`, `html`, `text`), n8n wysyła ją przez SMTP (poświadczenie "SMTP account mitax.pl", nadawca no-reply@mitax.pl);
+  bez `channel` = Telegram. Klucze `report:<dzień>` i `reporttest:<ts>`. Aplikacja nie ma haseł SMTP.
+  Definicje (osoby, nie zdarzenia; `dateUnknown` pomijane w liczbach z datą): zaproszenia i przyjęcia jak na dashboardzie (OUTBOUND z `INVITE_SENT`;
+  „z tego już przyjęte” = przyjęcie tego samego dnia), podziękowania i pytania o otwartość ze wszystkich kontaktów; cel: pytań ≥ podziękowań
+  (dzień i bilans 7 dni). Zaległości = niezarchiwizowane kontakty z etapem `THANKED` (czekają na pytanie; okna 3/7/30 dni wg daty podziękowania)
+  i `ACCEPTED` (czekają na podziękowanie; 7/30 dni wg daty przyjęcia), „razem” obejmuje też te bez znanej daty; liczone wg stanu w chwili wysyłki.
+
 - Dziennik aktywności (`/log`, tabela `ActivityLog`): każda zmiana danych, przebieg synchronizacji, powiadomienie i logowanie zostawia wpis
   przez `logActivity` (`lib/activity-log.ts`), wołany z warstwy domenowej, a nie z UI (żeby zmiany z synchronizacji też się logowały).
   Nowe mutacje dopisuj tak samo. Nigdy nie loguj haseł, kluczy, treści wiadomości ani e-maili/telefonów. Retencja 180 dni (automatycznie, raz na dobę).
