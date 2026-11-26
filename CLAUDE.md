@@ -9,7 +9,8 @@ Schemat bazy: `prisma/schema.prisma`.
 
 ## Stack
 
-- Next.js (App Router, TypeScript) na Vercel, funkcje w regionie `fra1`
+- Next.js (App Router, TypeScript) na Vercel, funkcje w regionie `fra1` (ustawia `vercel.json`; ten sam region co baza, `eu-central-1`: inaczej
+  każde zapytanie leci między regionami i zapis trwa kilka sekund)
 - PostgreSQL: dev w lokalnym Dockerze, produkcja w Prisma Postgres (`db.prisma.io`), dostęp przez Prisma
 - Logowanie: własna implementacja dla jednego użytkownika (bez Auth.js): hasło (scrypt) i sesja w podpisanym
   ciasteczku (JWT, `jose`), bramka w `proxy.ts`, klucze dostępu/Touch ID (`@simplewebauthn`)
