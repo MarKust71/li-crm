@@ -15,7 +15,7 @@ Schemat bazy: `prisma/schema.prisma`.
 - Logowanie: własna implementacja dla jednego użytkownika (bez Auth.js): hasło (scrypt) i sesja w podpisanym
   ciasteczku (JWT, `jose`), bramka w `proxy.ts`, klucze dostępu/Touch ID (`@simplewebauthn`)
 - n8n (`n8n.dmb24.pl`): webhook z rozszerzenia (dziś zapis do arkusza, przepięcie na bazę otwarte), synchronizacja
-  z Kalendarzem Google i powiadomienia Telegram (workflowy odpytują aplikację przez `/api/sync/*` i `/api/notify/*`)
+  z Kalendarzem Google, powiadomienia Telegram i dzienny raport e-mail przez SMTP (workflowy odpytują aplikację przez `/api/sync/*` i `/api/notify/*`)
 
 ## Zasady
 
