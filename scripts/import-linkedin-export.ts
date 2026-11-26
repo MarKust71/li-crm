@@ -1,10 +1,14 @@
 /**
- * Jednorazowo: uzupełnia bazę danymi z oficjalnego eksportu LinkedIn (CSV: Connections.csv, Invitations.csv). Spec 13.6a.
+ * Uzupełnia bazę danymi z LinkedIn: z oficjalnego eksportu (CSV: Connections.csv, Invitations.csv) albo z API (`--api`). Spec 13.6, 13.6a.
  *
  *   npx tsx --env-file=.env scripts/import-linkedin-export.ts [folder z CSV]          # na sucho
  *   npx tsx --env-file=.env scripts/import-linkedin-export.ts [folder z CSV] --apply  # wykonuje
+ *   npx tsx --env-file=.env scripts/import-linkedin-export.ts --api [folder] [--apply]       # dane z API
  *
- * Domyślny folder: _linkedin-probe/export/unpacked. Baza docelowa = DATABASE_URL (host wypisywany na początku).
+ * `--api`: czyta snapshot-CONNECTIONS.json i snapshot-INVITATIONS.json z `npm run linkedin:probe -- snapshot CONNECTIONS INVITATIONS`
+ * (domyślnie _linkedin-probe/), usuwa powtórzone rekordy i wypisuje datę pobrania. Dalszy przebieg jest taki sam.
+ *
+ * Domyślny folder CSV: _linkedin-probe/export/unpacked. Baza docelowa = DATABASE_URL (host wypisywany na początku).
  * Na terminal trafiają wyłącznie liczby. Skrypt jest powtarzalny: pomija to, co już jest w bazie.
  *
  * Co robi (osoba = znormalizowany adres profilu, spec 6.1):
@@ -26,10 +30,20 @@ import { logActivity } from "../lib/activity-log";
 import { warsawToUtc } from "../lib/dates";
 import { prisma } from "../lib/prisma";
 import { normalizeProfileUrl } from "../lib/profile-url";
-import { dayWarsaw, loadCsv, parseConnectedOn, parseSentAt } from "./linkedin-export-core";
+import { dayWarsaw, loadCsv, loadSnapshot, parseConnectedOn, parseSentAt } from "./linkedin-export-core";
 
 const apply = process.argv.includes("--apply");
-const dir = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? join(process.cwd(), "_linkedin-probe/export/unpacked");
+const fromApi = process.argv.includes("--api");
+const dir = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? join(process.cwd(), fromApi ? "_linkedin-probe" : "_linkedin-probe/export/unpacked");
+const sourceName = fromApi ? "API LinkedIn" : "eksport";
+
+function loadRows(domain: "CONNECTIONS" | "INVITATIONS", csv: string): Record<string, string>[] {
+  if (!fromApi) return loadCsv(dir, csv);
+  const s = loadSnapshot(dir, domain);
+  const savedAt = s.savedAt.toLocaleString("pl-PL", { timeZone: "Europe/Warsaw" });
+  console.log(`API ${domain}: ${s.raw} rekordów, po usunięciu powtórek ${s.rows.length} (pobrano ${savedAt})`);
+  return s.rows;
+}
 
 type Person = {
   url: string;
@@ -49,7 +63,7 @@ const dayToUtc = (day: string) => {
 function collect(): { people: Map<string, Person>; own: string | null; skipped: number } {
   const people = new Map<string, Person>();
   let skipped = 0;
-  for (const r of loadCsv(dir, "Connections.csv")) {
+  for (const r of loadRows("CONNECTIONS", "Connections.csv")) {
     const url = normalizeProfileUrl(r["URL"]);
     const name = clean(`${clean(r["First Name"])} ${clean(r["Last Name"])}`);
     if (!url || !name) {
@@ -69,7 +83,7 @@ function collect(): { people: Map<string, Person>; own: string | null; skipped: 
     });
   }
   // własny adres: najczęstszy „inviter” przy OUTGOING
-  const inv = loadCsv(dir, "Invitations.csv");
+  const inv = loadRows("INVITATIONS", "Invitations.csv");
   const freq = new Map<string, number>();
   for (const r of inv) {
     const u = normalizeProfileUrl(r["Direction"] === "OUTGOING" ? r["inviterProfileUrl"] : r["inviteeProfileUrl"]);
@@ -109,7 +123,7 @@ async function main() {
   if (process.argv.includes("--relabel")) return relabel();
   console.log(`Baza: ${new URL(process.env.DATABASE_URL!).host} · tryb: ${apply ? "WYKONANIE" : "na sucho"}`);
   const { people, own, skipped } = collect();
-  console.log(`Eksport: ${people.size} osób (pominięte wiersze bez adresu/nazwy/daty: ${skipped}${own ? "" : ", UWAGA: nie ustalono własnego adresu"})`);
+  console.log(`Źródło: ${sourceName}, ${people.size} osób (pominięte wiersze bez adresu/nazwy/daty: ${skipped}${own ? "" : ", UWAGA: nie ustalono własnego adresu"})`);
 
   const contacts = await prisma.contact.findMany({
     select: { id: true, profileUrl: true, direction: true, email: true, occupation: true, archived: true, events: { where: { type: { in: ["INVITE_SENT", "INVITE_RECEIVED", "ACCEPTED"] } }, select: { type: true } } },
@@ -191,8 +205,8 @@ async function main() {
     source: "SYNC",
     action: "import.linkedin_export",
     level: failed ? "WARN" : "INFO",
-    summary: `Import z eksportu LinkedIn: nowych kontaktów ${doneContacts}, zdarzeń ${doneEvents}, uzupełnionych ${filled}, błędów ${failed}`,
-    details: { contacts: doneContacts, events: doneEvents, filled, failed },
+    summary: `Import z LinkedIn (${fromApi ? "API" : "eksport CSV"}): nowych kontaktów ${doneContacts}, zdarzeń ${doneEvents}, uzupełnionych ${filled}, błędów ${failed}`,
+    details: { contacts: doneContacts, events: doneEvents, filled, failed, from: fromApi ? "api" : "csv" },
   });
 }
 
